@@ -64,7 +64,7 @@ need the setup described in the guide.
 
 ## Get the tools
 
-Download a prebuilt **Swatch** binary for Linux, macOS, or Windows from
+Download prebuilt **Swatch** and **Chalk** binaries for Linux, macOS, or Windows from
 [GitHub Releases](https://github.com/iamkaf/palette/releases). Extract the archive and
 put the executable on your `PATH`.
 
@@ -72,8 +72,8 @@ Swatch and Chalk have separate versions. Release tags use the tool's name, such 
 `swatch-v0.5.0`. Each native release includes a hash manifest, a Sigstore bundle, and
 GitHub artifact attestations.
 
-**Chalk** can currently be built from source. From this repository's root, with stable
-Rust installed:
+To build either tool from source, run this from the repository's root with stable Rust
+installed:
 
 ```bash
 cargo build --release --locked -p chalk

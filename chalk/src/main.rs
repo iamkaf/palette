@@ -1,5 +1,5 @@
 use chalk::pair::TestOptions;
-use chalk::{PackRoot, TOOL_NAME, build, check, pair, teakit};
+use chalk::{PackRoot, TOOL_NAME, build, check, game, pair, problems, teakit};
 use std::env;
 use std::process::ExitCode;
 
@@ -27,11 +27,28 @@ fn run(mut args: Vec<String>) -> chalk::Result<bool> {
     let root = PackRoot::discover(&env::current_dir()?)?;
     match command.as_str() {
         "check" => {
-            no_arguments("check", &args)?;
+            let options = parse_check_args(&args)?;
             let support = check::support(&root)?;
             print_support(&support);
-            teakit::typecheck(&root)?;
-            Ok(true)
+            if !teakit::test_files(&root)?.is_empty() {
+                teakit::typecheck(&root)?;
+            }
+            if !options.game {
+                return Ok(true);
+            }
+            let targets = check::select(&support.minecraft, &options.minecraft)?;
+            println!("Loading the pack in Minecraft");
+            let mut clean = true;
+            for loaded in game::load(&root, &support, &targets)? {
+                match loaded.problems.len() {
+                    0 => println!("  {:<8} loaded", loaded.minecraft.version),
+                    1 => println!("  {:<8} 1 problem", loaded.minecraft.version),
+                    count => println!("  {:<8} {count} problems", loaded.minecraft.version),
+                }
+                problems::print(&root, &loaded.problems);
+                clean &= loaded.problems.is_empty();
+            }
+            Ok(clean)
         }
         "test" => {
             let options = parse_test_args(&args)?;
@@ -66,6 +83,30 @@ fn print_support(support: &check::Support) {
     }
 }
 
+struct CheckOptions {
+    minecraft: Vec<String>,
+    game: bool,
+}
+
+fn parse_check_args(args: &[String]) -> chalk::Result<CheckOptions> {
+    let mut options = CheckOptions {
+        minecraft: Vec::new(),
+        game: true,
+    };
+    let mut args = args.iter();
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--minecraft" => {
+                let version = args.next().ok_or("--minecraft needs a version")?;
+                options.minecraft.push(version.clone());
+            }
+            "--no-game" => options.game = false,
+            other => return Err(format!("unknown check option {other}").into()),
+        }
+    }
+    Ok(options)
+}
+
 fn parse_test_args(args: &[String]) -> chalk::Result<TestOptions> {
     let mut options = TestOptions {
         minecraft: Vec::new(),
@@ -98,7 +139,10 @@ fn print_help() {
         "Chalk
 Develop and test Minecraft datapacks across Minecraft versions
 
-  chalk check                    Validate the pack and typecheck its tests
+  chalk check                    Validate the pack, typecheck its tests, and load it in
+                                 every supported Minecraft version
+  chalk check --minecraft <ver>  Load it in one version; repeat for more
+  chalk check --no-game          Skip loading it in Minecraft
   chalk test                     Run the tests on every Minecraft version the pack supports
   chalk test --minecraft <ver>   Run them on one version; repeat for more
   chalk test --visible           Show the Minecraft window instead of using Xvfb (Linux)

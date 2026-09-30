@@ -59,7 +59,9 @@ error.
 ## Commands
 
 ```bash
-chalk check                    # validate the pack and typecheck its tests
+chalk check                    # validate the pack, typecheck its tests, and load it in
+                               # every supported version
+chalk check --no-game          # skip loading it in Minecraft
 chalk test                     # run the tests on every supported version
 chalk test --minecraft 26.2    # run them on one version; repeat for more
 chalk test --visible           # show the Minecraft window instead of using Xvfb
@@ -67,6 +69,23 @@ chalk build                    # build the zip into build/chalk/
 ```
 
 Chalk writes everything it generates under `build/chalk/`.
+
+## Loading in Minecraft
+
+`chalk check` starts a vanilla dedicated server for each supported version with the built
+zip in its world, waits until the server is up, and stops it. Whatever the game logged
+about the pack becomes a problem, pointed at the file that version actually read:
+
+```text
+Loading the pack in Minecraft
+  26.3     loaded
+  1.21.1   1 problem
+  PACK    datapack/data/my_pack/advancement/light@-26.2.json: Unknown registry key in ResourceKey[minecraft:root / minecraft:trigger_type]: minecraft:no_such_trigger
+```
+
+This catches anything the game rejects on a version, like a command that doesn't parse or
+an ID that doesn't exist there, without writing a test. Servers start a few at a time;
+five versions take about a minute once their files are downloaded.
 
 ## Tests
 

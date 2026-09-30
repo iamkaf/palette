@@ -40,6 +40,26 @@ pub struct Overlay {
 }
 
 impl Pack {
+    /// The files a game with `format` loads: applicable overlays replace base files that
+    /// share their path.
+    pub fn files_for(&self, format: PackFormat) -> Vec<&PackFile> {
+        let mut files: BTreeMap<&str, &PackFile> = self
+            .files
+            .iter()
+            .map(|file| (file.path.as_str(), file))
+            .collect();
+        for overlay in self
+            .overlays
+            .iter()
+            .filter(|overlay| overlay.formats.contains(format))
+        {
+            for file in &overlay.files {
+                files.insert(file.path.as_str(), file);
+            }
+        }
+        files.into_values().collect()
+    }
+
     /// Namespaces the pack defines, for spotting its errors in game logs.
     pub fn namespaces(&self) -> Vec<String> {
         let mut namespaces: Vec<String> = self

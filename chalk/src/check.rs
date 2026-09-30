@@ -74,3 +74,28 @@ pub fn files(dir: &Path) -> Result<Vec<PathBuf>> {
     files.sort();
     Ok(files)
 }
+
+/// The supported versions to run, newest first: all of them, or the ones requested.
+pub fn select(supported: &[Minecraft], requested: &[String]) -> Result<Vec<Minecraft>> {
+    for version in requested {
+        if !supported
+            .iter()
+            .any(|minecraft| &minecraft.version == version)
+        {
+            let known: Vec<&str> = supported
+                .iter()
+                .map(|minecraft| minecraft.version.as_str())
+                .collect();
+            return Err(format!(
+                "the pack doesn't support {version}; it supports {}",
+                known.join(", ")
+            )
+            .into());
+        }
+    }
+    Ok(supported
+        .iter()
+        .filter(|minecraft| requested.is_empty() || requested.contains(&minecraft.version))
+        .cloned()
+        .collect())
+}

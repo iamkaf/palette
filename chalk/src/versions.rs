@@ -32,6 +32,34 @@ pub struct Minecraft {
     pub mods: Vec<String>,
 }
 
+impl Minecraft {
+    /// The TeaKit mods a test instance loads. TeaKit 0.18.0 and newer needs its player driver,
+    /// which ships as a separate mod at the same version.
+    pub fn teakit_mods(&self) -> Vec<String> {
+        let mut mods = vec![format!(
+            "maven:com.iamkaf.teakit:teakit-fabric:{}",
+            self.teakit
+        )];
+        if separate_player_driver(&self.teakit) {
+            mods.push(format!(
+                "maven:com.iamkaf.teakit:teakit-playerdriver-fabric:{}",
+                self.teakit
+            ));
+        }
+        mods
+    }
+}
+
+fn separate_player_driver(teakit: &str) -> bool {
+    let release = teakit.split('+').next().unwrap_or(teakit);
+    let mut numbers = release
+        .split('.')
+        .map(|part| part.parse::<u32>().unwrap_or(0));
+    let major = numbers.next().unwrap_or(0);
+    let minor = numbers.next().unwrap_or(0);
+    (major, minor) >= (0, 18)
+}
+
 #[derive(Deserialize)]
 struct File {
     fabric_loader: String,
@@ -264,5 +292,29 @@ mod tests {
         );
         assert!(VersionRange::parse("-").is_err());
         assert!(VersionRange::parse("latest").is_err());
+    }
+
+    #[test]
+    fn loads_the_player_driver_with_teakit_0_18_and_newer() {
+        let minecraft = |teakit: &str| Minecraft {
+            version: "26.3".into(),
+            data_format: PackFormat {
+                major: 121,
+                minor: 0,
+            },
+            teakit: teakit.into(),
+            mods: Vec::new(),
+        };
+        assert_eq!(
+            minecraft("0.18.0+26.3").teakit_mods(),
+            [
+                "maven:com.iamkaf.teakit:teakit-fabric:0.18.0+26.3",
+                "maven:com.iamkaf.teakit:teakit-playerdriver-fabric:0.18.0+26.3",
+            ]
+        );
+        assert_eq!(
+            minecraft("0.15.0+1.21.1").teakit_mods(),
+            ["maven:com.iamkaf.teakit:teakit-fabric:0.15.0+1.21.1"]
+        );
     }
 }

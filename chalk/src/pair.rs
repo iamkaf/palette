@@ -46,17 +46,16 @@ pub fn test(root: &PackRoot, support: &Support, options: &TestOptions) -> Result
             minecraft: &minecraft.version,
             loader: Loader::Fabric(&support.versions.fabric_loader),
             sides: &["client", "server"],
-            mods: std::iter::once(format!(
-                "maven:com.iamkaf.teakit:teakit-fabric:{}",
-                minecraft.teakit
-            ))
-            .chain(
-                minecraft
-                    .mods
-                    .iter()
-                    .map(|entry| format!("modrinth:{entry}")),
-            )
-            .collect(),
+            mods: minecraft
+                .teakit_mods()
+                .into_iter()
+                .chain(
+                    minecraft
+                        .mods
+                        .iter()
+                        .map(|entry| format!("modrinth:{entry}")),
+                )
+                .collect(),
             properties: Vec::new(),
             packs: vec![(archive.as_path(), format!("{}.zip", root.slug()))],
         })

@@ -4,9 +4,12 @@ use std::path::{Path, PathBuf};
 
 pub mod build;
 pub mod check;
+pub mod game;
 pub mod mcmeta;
+pub mod modstage;
 pub mod pack;
 pub mod pair;
+pub mod problems;
 pub mod source;
 pub mod teakit;
 pub mod versions;

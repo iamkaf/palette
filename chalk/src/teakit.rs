@@ -83,3 +83,17 @@ fn run(command: &mut Command, action: &str) -> Result<()> {
     }
     Ok(())
 }
+
+/// Every `*.test.ts` file in `tests/`, sorted.
+pub fn test_files(root: &PackRoot) -> Result<Vec<PathBuf>> {
+    let dir = root.tests_dir();
+    if !dir.is_dir() {
+        return Ok(Vec::new());
+    }
+    let mut tests: Vec<PathBuf> = fs::read_dir(&dir)?
+        .filter_map(|entry| entry.ok().map(|entry| entry.path()))
+        .filter(|path| path.to_string_lossy().ends_with(".test.ts"))
+        .collect();
+    tests.sort();
+    Ok(tests)
+}

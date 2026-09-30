@@ -1,7 +1,7 @@
 use chalk::dev::DevOptions;
 use chalk::pair::TestOptions;
 use chalk::publish::{self, PublishMode};
-use chalk::{PackRoot, TOOL_NAME, build, check, dev, game, init, pair, problems, teakit};
+use chalk::{PackRoot, TOOL_NAME, build, check, dev, game, init, pair, teakit};
 use std::env;
 use std::process::ExitCode;
 
@@ -33,9 +33,8 @@ fn run(mut args: Vec<String>) -> chalk::Result<bool> {
             _ => return Err("init takes at most one directory".into()),
         };
         init::init(&dir)?;
-        teakit::install_types(&PackRoot::at(&dir)?)?;
         println!("Created a pack in {}", dir.display());
-        println!("Run `{TOOL_NAME} dev` there to play it, or `{TOOL_NAME} test` to run its test.");
+        println!("Run `{TOOL_NAME} dev` there to play it, or `{TOOL_NAME} check` to test it.");
         return Ok(true);
     }
     let root = PackRoot::discover(&env::current_dir()?)?;
@@ -54,13 +53,7 @@ fn run(mut args: Vec<String>) -> chalk::Result<bool> {
             println!("Loading the pack in Minecraft");
             let mut clean = true;
             for loaded in game::load(&root, &support, &targets)? {
-                match loaded.problems.len() {
-                    0 => println!("  {:<8} loaded", loaded.minecraft.version),
-                    1 => println!("  {:<8} 1 problem", loaded.minecraft.version),
-                    count => println!("  {:<8} {count} problems", loaded.minecraft.version),
-                }
-                problems::print(&root, &loaded.problems);
-                clean &= loaded.problems.is_empty();
+                clean &= game::print(&root, &loaded);
             }
             Ok(clean)
         }

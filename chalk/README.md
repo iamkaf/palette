@@ -27,7 +27,7 @@ chalk dev
 ```
 
 `chalk init` creates a pack that supports every version Chalk tests, with one function and
-a test for it, and installs the test types so your editor can check `tests/` right away.
+a test for it. `chalk check` runs that test on every version.
 
 ## A pack
 
@@ -38,6 +38,7 @@ my-pack/
 │   ├── pack.png
 │   └── data/
 └── tests/
+    ├── lights_a_frame.mcfunction
     ├── portals.test.ts
     └── tsconfig.json
 ```
@@ -72,12 +73,12 @@ error.
 
 ```bash
 chalk init my-pack             # create a pack in a new directory
-chalk check                    # validate the pack, typecheck its tests, and load it in
-                               # every supported version
+chalk check                    # validate the pack, typecheck its tests, and load it and
+                               # run its function tests in every supported version
 chalk check --no-game          # skip loading it in Minecraft
 chalk dev                      # play the pack on the newest version and reload it on save
 chalk dev --minecraft 1.21.1   # play it on another version
-chalk test                     # run the tests on every supported version
+chalk test                     # run the TeaKit tests on every supported version
 chalk test --minecraft 26.2    # run them on one version; repeat for more
 chalk test --visible           # show the Minecraft window instead of using Xvfb
 chalk build                    # build the zip into build/chalk/
@@ -88,7 +89,7 @@ Chalk writes everything it generates under `build/chalk/`.
 ## Loading in Minecraft
 
 `chalk check` starts a vanilla dedicated server for each supported version with the built
-zip in its world, waits until the server is up, and stops it. Whatever the game logged
+zip in a new world, runs the pack's function tests, and stops it. Whatever the game logged
 about the pack becomes a problem, pointed at the file that version actually read, and at
 the line for commands that don't parse:
 
@@ -102,6 +103,37 @@ Loading the pack in Minecraft
 This catches anything the game rejects on a version, like a command that doesn't parse or
 an ID that doesn't exist there, without writing a test. Servers start a few at a time;
 five versions take about a minute once their files are downloaded.
+
+## Function tests
+
+Every `.mcfunction` file directly in `tests/` is a test. Chalk loads them as the `test`
+namespace next to your pack and runs each one, so `tests/lights_a_frame.mcfunction` runs
+as `function test:lights_a_frame`. Functions in folders under `tests/` are helpers your
+tests can call, like `test:helpers/frame`.
+
+A test fails when it returns 0, as `return fail` does, or when it says anything with
+`say`. That makes `execute unless ... run say` a one-line assertion whose message Chalk
+prints:
+
+```mcfunction
+# A 2 by 3 obsidian frame along X lights from fire in its bottom-left cell.
+execute in minecraft:the_end run fill 8 100 8 11 104 8 minecraft:obsidian
+execute in minecraft:the_end run fill 9 101 8 10 103 8 minecraft:air
+execute in minecraft:the_end positioned 9 101 8 run function my_pack:ignite
+
+execute in minecraft:the_end unless block 9 101 8 minecraft:nether_portal run say no portal in the bottom-left cell
+```
+
+```text
+  26.3     loaded, 1 of 3 tests failed
+  FAIL    tests/lights_a_frame.mcfunction
+          no portal in the bottom-left cell
+```
+
+A server without players has no chunks loaded, so Chalk loads blocks 0 to 31 on X and Z
+in the Overworld, the Nether, and the End before the tests run. Build your fixtures there.
+Tests share one world, which starts fresh for every check, so give each test its own
+spot.
 
 ## Playing while you work
 
@@ -122,14 +154,17 @@ Reloaded
 Players who join become operators, so you can run your functions right away. The server
 only accepts connections from your own computer, and the world stays between runs.
 
-## Tests
+## TeaKit tests
 
-Tests are TeaKit TypeScript files in `tests/`. `tests/tsconfig.json` extends the config
-`chalk check` writes to `build/chalk/`, which is how editors find the `@teakit/test` types. `chalk test` runs each one in a Fabric
+Function tests can't use a player. For that, write TeaKit TypeScript tests as
+`tests/*.test.ts`. `chalk test` runs each one in a Fabric
 client connected to a Fabric dedicated server that loads your built zip, with Fabric API,
 Sodium, Iris, and C2ME installed on both, so the pack is proven in the game players
 actually run. A run also fails when the server logs a warning or error about one of the
 pack's namespaces, such as a file that didn't parse on that version.
+
+Add `tests/tsconfig.json` containing `{ "extends": "../build/chalk/tsconfig.json" }` so
+your editor finds the `@teakit/test` types, which `chalk check` installs there.
 
 Chalk tests on these versions:
 

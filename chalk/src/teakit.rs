@@ -34,7 +34,7 @@ fn wrapper(root: &PackRoot) -> Result<PathBuf> {
 
 /// Installs the `@teakit/test` types and writes `build/chalk/tsconfig.json`, which the
 /// typecheck and editors (through `tests/tsconfig.json`) read. Returns its path.
-pub fn install_types(root: &PackRoot) -> Result<PathBuf> {
+fn install_types(root: &PackRoot) -> Result<PathBuf> {
     let sdk = root.build_dir().join("sdk");
     run(
         command(root)?

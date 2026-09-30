@@ -58,8 +58,7 @@ pub fn test(root: &PackRoot, support: &Support, options: &TestOptions) -> Result
             )
             .collect(),
             properties: Vec::new(),
-            pack: &archive,
-            pack_name: format!("{}.zip", root.slug()),
+            packs: vec![(archive.as_path(), format!("{}.zip", root.slug()))],
         })
         .collect();
     fs::write(&modstage, modstage::config(root.slug(), &instances))?;

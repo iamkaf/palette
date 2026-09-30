@@ -1,5 +1,5 @@
-use super::{Artifact, PreparedRelease, Result, http_client};
-use crate::{PackRoot, hash};
+use super::{Artifact, PreparedRelease, Result, Workspace};
+use crate::hash;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::fs;
@@ -148,25 +148,28 @@ pub fn dry_run(release: &PreparedRelease) -> Result<Vec<String>> {
     for artifact in release_artifacts(release) {
         output.push(format!(
             "DRY GitHub {API_BASE}/repos/{}/releases/{}/assets <- {} ({})",
-            repository, release.lock.pack.version, artifact.name, artifact.sha512
+            repository, release.project.version, artifact.name, artifact.sha512
         ));
     }
     Ok(output)
 }
 
-pub(super) fn preflight(root: &PackRoot, source_revision: Option<&str>) -> Result<PublishInput> {
+pub(super) fn preflight(
+    workspace: &Workspace,
+    source_revision: Option<&str>,
+) -> Result<PublishInput> {
     let source_revision = source_revision.ok_or_else(|| {
         crate::Error::from(
-            "GitHub publication requires release.json.sourceRevision; run `swatch prepare` from a Git checkout before publishing",
+            format!("GitHub publication requires release.json.sourceRevision; run `{} prepare` from a Git checkout before publishing", workspace.tool.command),
         )
     })?;
 
     Ok(PublishInput {
         source_revision: source_revision.into(),
-        release_manifest: read_proof_asset(root, RELEASE_MANIFEST_NAME)?,
-        sigstore_bundle: read_proof_asset(root, SIGSTORE_BUNDLE_NAME).map_err(|error| {
+        release_manifest: read_proof_asset(workspace, RELEASE_MANIFEST_NAME)?,
+        sigstore_bundle: read_proof_asset(workspace, SIGSTORE_BUNDLE_NAME).map_err(|error| {
             crate::Error::from(format!(
-                "cannot load GitHub proof asset {SIGSTORE_BUNDLE_NAME}: {error}; sign build/dist/{RELEASE_MANIFEST_NAME} before publishing"
+                "cannot load GitHub proof asset {SIGSTORE_BUNDLE_NAME}: {error}; sign {}/{RELEASE_MANIFEST_NAME} before publishing", workspace.dist
             ))
         })?,
     })
@@ -183,7 +186,7 @@ pub fn publish(release: &PreparedRelease, input: &PublishInput) -> Result<Vec<St
         .as_deref()
         .ok_or_else(|| crate::Error::from("publish.github.repository was not resolved"))?;
     let token = github_token()?;
-    let client = http_client()?;
+    let client = release.http_client()?;
     let github_release =
         find_or_create_release(&client, &token, repository, release, &input.source_revision)?;
     let assets = input
@@ -213,6 +216,7 @@ fn release_artifacts(release: &PreparedRelease) -> impl Iterator<Item = &Artifac
             super::ArtifactKind::Client
                 | super::ArtifactKind::Server
                 | super::ArtifactKind::CurseForge
+                | super::ArtifactKind::Pack
         )
     })
 }
@@ -224,7 +228,7 @@ fn find_or_create_release(
     prepared: &PreparedRelease,
     source_revision: &str,
 ) -> Result<Release> {
-    let tag = release_tag(&prepared.lock.pack.version);
+    let tag = release_tag(&prepared.project.version);
     let url = format!("{API_BASE}/repos/{}/releases/tags/{}", repository, tag);
     let response = client.get(&url).bearer_auth(token).send()?;
     if response.status() != reqwest::StatusCode::NOT_FOUND {
@@ -241,7 +245,7 @@ fn find_or_create_release(
         .json(&NewRelease {
             tag_name: &tag,
             target_commitish,
-            name: &format!("{} {}", prepared.lock.pack.name, prepared.lock.pack.version),
+            name: &format!("{} {}", prepared.project.name, prepared.project.version),
             body,
             draft: false,
             prerelease: false,
@@ -462,8 +466,8 @@ fn compare_existing_asset(
     }
 }
 
-fn read_proof_asset(root: &PackRoot, name: &'static str) -> Result<ProofAsset> {
-    let path = root.dist_dir().join(name);
+fn read_proof_asset(workspace: &Workspace, name: &'static str) -> Result<ProofAsset> {
+    let path = workspace.dist_dir().join(name);
     let bytes = fs::read(&path)
         .map_err(|error| crate::Error::from(format!("cannot read {}: {error}", path.display())))?;
     Ok(ProofAsset {
@@ -613,9 +617,7 @@ mod tests {
     #[test]
     fn proof_assets_use_the_dist_names_and_exact_bytes() {
         let directory = tempfile::tempdir().expect("temporary pack");
-        let root = PackRoot {
-            path: directory.path().to_path_buf(),
-        };
+        let root = crate::fixtures::workspace(directory.path());
         fs::create_dir_all(root.dist_dir()).expect("dist directory");
         fs::write(root.dist_dir().join(RELEASE_MANIFEST_NAME), b"manifest")
             .expect("release manifest");
@@ -634,9 +636,7 @@ mod tests {
     #[test]
     fn github_preflight_requires_a_source_revision_before_proof_files() {
         let directory = tempfile::tempdir().expect("temporary pack");
-        let root = PackRoot {
-            path: directory.path().to_path_buf(),
-        };
+        let root = crate::fixtures::workspace(directory.path());
 
         let error = preflight(&root, None)
             .expect_err("missing source revision")
@@ -647,9 +647,7 @@ mod tests {
     #[test]
     fn github_preflight_requires_the_sigstore_bundle() {
         let directory = tempfile::tempdir().expect("temporary pack");
-        let root = PackRoot {
-            path: directory.path().to_path_buf(),
-        };
+        let root = crate::fixtures::workspace(directory.path());
         fs::create_dir_all(root.dist_dir()).expect("dist directory");
         fs::write(root.dist_dir().join(RELEASE_MANIFEST_NAME), b"manifest")
             .expect("release manifest");

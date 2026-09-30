@@ -1,5 +1,6 @@
-use super::{Artifact, ArtifactKind, PreparedRelease, ReleasePreparation, Result, xml};
-use crate::spec::{Lockfile, PackMeta};
+use super::{
+    Artifact, ArtifactKind, PreparedRelease, Project, ReleasePreparation, Result, Tool, xml,
+};
 use reqwest::StatusCode;
 use reqwest::blocking::{Client, Response};
 use reqwest::header::{CACHE_CONTROL, CONTENT_TYPE, ETAG, IF_MATCH, IF_NONE_MATCH, PRAGMA};
@@ -16,7 +17,7 @@ pub fn dry_run(release: &PreparedRelease) -> Result<Vec<String>> {
     let locations = Locations::from_release(release)?;
     let mut output = Vec::new();
     for item in immutable_artifacts(release) {
-        let url = locations.version_file(&release.lock.pack.version, &item.name);
+        let url = locations.version_file(&release.project.version, &item.name);
         output.push(format!("DRY Maven {url}"));
         output.push(format!("DRY Maven {url}.sha512"));
     }
@@ -29,22 +30,22 @@ pub fn publish(release: &PreparedRelease) -> Result<Vec<String>> {
     let locations = Locations::from_release(release)?;
     let username = required_env("MAVEN_PUBLISH_USERNAME")?;
     let password = required_env("MAVEN_PUBLISH_PASSWORD")?;
-    let client = super::http_client()?;
+    let client = release.http_client()?;
     let metadata = metadata_artifact(release)?;
     let metadata_url = locations.metadata(&metadata.name);
     let metadata_update = prepare_metadata_update(
         &client,
         &metadata_url,
         metadata,
-        &release.lock.pack.group,
-        &release.lock.pack.slug,
-        &release.lock.pack.version,
+        &release.project.group,
+        &release.project.slug,
+        &release.project.version,
     )
     .map_err(|error| crate::Error::from(format!("{error}; no files were uploaded")))?;
 
     let mut output = Vec::new();
     for item in immutable_artifacts(release) {
-        let url = locations.version_file(&release.lock.pack.version, &item.name);
+        let url = locations.version_file(&release.project.version, &item.name);
         publish_immutable(&client, &url, &item.name, &item.bytes, &username, &password)?;
         output.push(format!("published Maven {}", item.name));
 
@@ -93,24 +94,20 @@ pub fn publish(release: &PreparedRelease) -> Result<Vec<String>> {
 
 /// Merge the publicly readable metadata with this release so preparation records exact bytes.
 pub(super) fn prepare_metadata(
-    lock: &Lockfile,
+    tool: Tool,
+    project: &Project,
     repository: &str,
     mode: ReleasePreparation,
 ) -> Result<String> {
-    let url = Locations::new(repository, &lock.pack).metadata("maven-metadata.xml");
+    let url = Locations::new(repository, project).metadata("maven-metadata.xml");
     let mut versions = BTreeSet::new();
     if mode == ReleasePreparation::Strict {
-        let response = public_get(&super::http_client()?, &url)?;
+        let response = public_get(&super::http_client(tool)?, &url)?;
         match response.status() {
             StatusCode::OK => {
                 let bytes = read_limited(response, MAX_METADATA_BYTES, "published Maven metadata")?;
                 let current = parse_metadata(&bytes, "published")?;
-                validate_metadata_identity(
-                    &current,
-                    &lock.pack.group,
-                    &lock.pack.slug,
-                    "published",
-                )?;
+                validate_metadata_identity(&current, &project.group, &project.slug, "published")?;
                 versions.extend(current.versioning.versions.version);
             }
             StatusCode::NOT_FOUND => {}
@@ -122,15 +119,15 @@ pub(super) fn prepare_metadata(
             }
         }
     }
-    versions.insert(lock.pack.version.clone());
+    versions.insert(project.version.clone());
     let latest = versions
         .iter()
         .max_by(|left, right| compare_pack_versions(left, right))
         .cloned()
-        .unwrap_or_else(|| lock.pack.version.clone());
+        .unwrap_or_else(|| project.version.clone());
     Ok(metadata_xml(
-        &lock.pack.group,
-        &lock.pack.slug,
+        &project.group,
+        &project.slug,
         &latest,
         &versions.into_iter().collect::<Vec<_>>(),
     ))
@@ -189,7 +186,7 @@ struct Locations {
 }
 
 impl Locations {
-    fn new(repository: &str, pack: &PackMeta) -> Self {
+    fn new(repository: &str, pack: &Project) -> Self {
         Self {
             base: format!(
                 "{}/{}/{}",
@@ -206,7 +203,7 @@ impl Locations {
             .maven
             .as_ref()
             .ok_or_else(|| crate::Error::from("Maven is not configured"))?;
-        Ok(Self::new(&config.repository, &release.lock.pack))
+        Ok(Self::new(&config.repository, &release.project))
     }
 
     fn version_file(&self, version: &str, name: &str) -> String {
@@ -222,7 +219,7 @@ fn immutable_artifacts(release: &PreparedRelease) -> impl Iterator<Item = &Artif
     release
         .artifacts
         .iter()
-        .filter(|item| matches!(item.kind, ArtifactKind::Maven | ArtifactKind::Client))
+        .filter(|item| item.kind == ArtifactKind::Maven || item.kind == release.project.primary())
 }
 
 fn metadata_artifact(release: &PreparedRelease) -> Result<&Artifact> {
@@ -548,7 +545,6 @@ fn validate_version_pointers(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::spec::{Loader, Lockfile, PackMeta};
     use std::io::{BufRead, BufReader, Write};
     use std::net::{TcpListener, TcpStream};
     use std::thread;
@@ -565,18 +561,8 @@ mod tests {
 
     fn release() -> PreparedRelease {
         PreparedRelease {
-            lock: Lockfile::new(
-                PackMeta {
-                    name: "Example Pack".into(),
-                    slug: "example-pack".into(),
-                    version: "1.0.0".into(),
-                    group: "org.example.packs".into(),
-                    minecraft: "26.2".into(),
-                    loader: Loader::Fabric,
-                    loader_version: "0.19.3".into(),
-                },
-                Vec::new(),
-            ),
+            tool: crate::fixtures::TOOL,
+            project: crate::fixtures::modpack(),
             config: super::super::PublishConfig {
                 maven: Some(super::super::MavenConfig {
                     repository: "https://example.invalid/maven".into(),

@@ -12,7 +12,9 @@ const CURSEFORGE_MANIFEST_VERSION: u32 = 1;
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct Config {
-    pub(crate) project: u64,
+    /// The shared publisher reads and validates the project ID.
+    #[serde(rename = "project")]
+    _project: serde::de::IgnoredAny,
     pub(crate) author: String,
     #[serde(default)]
     add: Vec<ExplicitFile>,
@@ -65,7 +67,9 @@ pub fn ensure_mappings(
     lock: Lockfile,
     verified: &fetch::VerifiedFiles,
 ) -> Result<Lockfile> {
-    let config = load_config(root)?;
+    let config = load_config(root)?.ok_or(
+        "pack.toml [publish.curseforge] must be configured to refresh CurseForge mappings",
+    )?;
     let excluded = validate_config(&config, &lock)?;
     let mapped: BTreeSet<_> = lock
         .curseforge
@@ -475,14 +479,25 @@ pub(crate) fn export_from_lock_to(
     Ok(destination)
 }
 
-fn load_config(root: &PackRoot) -> Result<Config> {
+/// Reads `[publish.curseforge]` from pack.toml. `false` or a missing table means none.
+pub(crate) fn load_config(root: &PackRoot) -> Result<Option<Config>> {
     let text = fs::read_to_string(root.pack_toml())?;
-    crate::publish::load_config(&text)?
-        .curseforge
-        .ok_or_else(|| {
-            "pack.toml [publish.curseforge] must be configured to refresh CurseForge mappings"
-                .into()
-        })
+    let value: toml::Value =
+        toml::from_str(&text).map_err(|error| crate::Error::from(format!("pack.toml: {error}")))?;
+    match value
+        .get("publish")
+        .and_then(|publish| publish.get("curseforge"))
+    {
+        None | Some(toml::Value::Boolean(false)) => Ok(None),
+        Some(table @ toml::Value::Table(_)) => table
+            .clone()
+            .try_into()
+            .map(Some)
+            .map_err(|error| format!("pack.toml [publish.curseforge]: {error}").into()),
+        Some(_) => {
+            Err("publish.curseforge must be false or a table with project and author".into())
+        }
+    }
 }
 
 fn toml_string(value: &str) -> String {
@@ -570,7 +585,7 @@ mod tests {
     #[test]
     fn config_rejects_a_stale_exclusion() {
         let config = Config {
-            project: 123,
+            _project: serde::de::IgnoredAny,
             author: "Example Author".into(),
             add: Vec::new(),
             exclude: vec![ExcludedFile {
@@ -587,7 +602,7 @@ mod tests {
     #[test]
     fn config_rejects_excluding_a_server_file() {
         let config = Config {
-            project: 123,
+            _project: serde::de::IgnoredAny,
             author: "Example Author".into(),
             add: Vec::new(),
             exclude: vec![ExcludedFile {
@@ -625,9 +640,10 @@ reason = "No compatible file is available."
         )
         .expect("pack manifest");
 
-        let config = load_config(&root).expect("CurseForge config");
+        let config = load_config(&root)
+            .expect("CurseForge config")
+            .expect("configured CurseForge");
 
-        assert_eq!(config.project, 123);
         assert_eq!(config.author, "Example Author");
         assert_eq!(config.add.len(), 1);
         assert_eq!(config.add[0].id, "shader");
@@ -718,7 +734,7 @@ reason = "No compatible file is available."
         let mut lock = lock(true);
         lock.set_authored(crate::authored::scan(&root).expect("authored pins"));
         let config = Config {
-            project: 123,
+            _project: serde::de::IgnoredAny,
             author: "Example Author".into(),
             add: Vec::new(),
             exclude: Vec::new(),

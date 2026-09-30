@@ -1,27 +1,21 @@
 [package]
-name = "swatch"
-version = "0.5.0"
+name = "palette-publish"
+version = "0.1.0"
 edition = "2024"
 license = "Apache-2.0"
 repository = "https://github.com/iamkaf/palette"
-readme = "README.md"
 publish = false
-description = "Author lockfile-first Minecraft modpacks."
+description = "Prepare, verify, and publish Minecraft pack releases."
 
-[[bin]]
-name = "swatch"
-path = "src/main.rs"
+[lib]
+name = "palette_publish"
 
 [dependencies]
-palette-publish = { path = "../publish" }
 hex = "0.4"
 reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "multipart", "rustls-tls"] }
 quick-xml = { version = "0.38", features = ["serialize"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-sha1 = "0.10"
 sha2 = "0.10"
-toml = "0.8"
-toml_edit = "0.22"
 tempfile = "3"
-zip = { version = "2", default-features = false, features = ["deflate"] }
+toml = "0.8"

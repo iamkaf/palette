@@ -2,8 +2,15 @@
 name = "chalk"
 version = "0.1.0"
 edition = "2024"
-description = "Develop and test Minecraft datapacks across Minecraft versions"
 license = "Apache-2.0"
+repository = "https://github.com/iamkaf/chalk"
+readme = "README.md"
+publish = false
+description = "Build and test Minecraft datapacks across Minecraft versions."
+
+[[bin]]
+name = "chalk"
+path = "src/main.rs"
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }

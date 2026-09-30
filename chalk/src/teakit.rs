@@ -1,11 +1,13 @@
 use crate::{PackRoot, Result};
 use std::fs;
-use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 use std::process::Command;
 
 /// TeaKit's wrapper script. It downloads and caches the pinned TeaKit runner.
-const TEAKITW: &str = include_str!("teakitw");
+#[cfg(not(windows))]
+const TEAKITW: (&str, &str) = ("teakitw", include_str!("teakitw"));
+#[cfg(windows)]
+const TEAKITW: (&str, &str) = ("teakitw.bat", include_str!("teakitw.bat"));
 
 /// Writes the wrapper into `build/chalk/` and returns a command that runs it from the
 /// repository root.
@@ -19,9 +21,14 @@ pub fn command(root: &PackRoot) -> Result<Command> {
 fn wrapper(root: &PackRoot) -> Result<PathBuf> {
     let dir = root.build_dir();
     fs::create_dir_all(&dir)?;
-    let path = dir.join("teakitw");
-    fs::write(&path, TEAKITW)?;
-    fs::set_permissions(&path, fs::Permissions::from_mode(0o755))?;
+    let (name, script) = TEAKITW;
+    let path = dir.join(name);
+    fs::write(&path, script)?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o755))?;
+    }
     Ok(path)
 }
 

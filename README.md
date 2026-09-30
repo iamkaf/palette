@@ -52,6 +52,7 @@ errors back to the file that caused them.
 
 ```bash
 chalk check          # validate the pack and load it in supported game versions
+chalk dev            # play the pack and reload it every time you save
 chalk test           # run your pack's in-game tests
 chalk build          # write the zip to build/chalk/
 ```
@@ -92,8 +93,7 @@ Chalk's layout and commands may change as more packs use it.
 | [`chalk/`](chalk) | Datapack variants, builds, game checks, and tests. |
 | [`publish/`](publish) | The shared publishing library for GitHub Releases, Maven, Modrinth, and CurseForge. |
 
-The publishing library is currently used by Swatch. Chalk's commands are `check`,
-`test`, and `build`.
+The publishing library is currently used by Swatch.
 
 To check the Rust workspace:
 

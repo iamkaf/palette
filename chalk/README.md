@@ -81,6 +81,7 @@ chalk dev --minecraft 1.21.1   # play it on another version
 chalk test                     # run the TeaKit tests on every supported version
 chalk test --minecraft 26.2    # run them on one version; repeat for more
 chalk test --visible           # show the Minecraft window instead of using Xvfb
+chalk changes                  # list what to look into across the pack's versions
 chalk build                    # build the zip into build/chalk/
 ```
 
@@ -134,6 +135,29 @@ A server without players has no chunks loaded, so Chalk loads blocks 0 to 31 on 
 in the Overworld, the Nether, and the End before the tests run. Build your fixtures there.
 Tests share one world, which starts fresh for every check, so give each test its own
 spot.
+
+## Porting to a new version
+
+When a new Minecraft version comes out, widen `minecraft` in `chalk.toml` to include it
+and run `chalk changes`. It lists every file that uses something vanilla's own data files
+use in only some of the versions reading that file: a renamed key, a value that became an
+object or a list, an ID that appeared or went away, or a folder that moved.
+
+```text
+To look into, from vanilla data across Minecraft 1.21.1-26.3
+  datapack/data/my_pack/advancement/light_portal.json (1.21 to 26.3)
+    `location/condition`: in vanilla `advancement` files until 26.2
+    `conditions/location` as a list: in vanilla `advancement` files until 26.2
+```
+
+Keys are named with the key holding them, so `conditions/location` is the `location`
+inside `conditions`. Each line is a lead, not a verdict. Vanilla's files show what Mojang
+changed in its own data, so a pack using the same thing likely needs a new file for the
+newer version, or a variant for the older ones. Something vanilla never uses doesn't show
+up, and neither do functions and tags; `chalk check` loads those on every version.
+
+`chalk changes` compares with a table built into Chalk, so it needs no game and gives the
+same answer every time.
 
 ## Playing while you work
 
@@ -214,6 +238,19 @@ Chalk shares Swatch's publisher, so `[publish.github]`, `[publish.maven]`,
 `[publish.modrinth]`, and `[publish.curseforge]` work [the same way](../swatch#prepare-and-publish-a-release).
 Publishing reads `GITHUB_TOKEN`, `MAVEN_PUBLISH_USERNAME` and `MAVEN_PUBLISH_PASSWORD`,
 `MODRINTH_TOKEN`, and `CURSEFORGE_TOKEN` for the targets you configure.
+
+## Maintaining Chalk
+
+Adding a Minecraft version means adding it to `[releases]` in
+[`src/environments.toml`](src/environments.toml) and rebuilding the table `chalk changes`
+reads from the dedicated server jars, one per data format, including the new one:
+
+```bash
+chalk vanilla-table 1.21.1.jar 1.21.3.jar ... 26.3.jar 26.4.jar > chalk/src/vanilla.json
+```
+
+The table lists its jars' versions under `releases`. Server jars come from
+`downloads.server.url` in each version's entry in Mojang's version manifest.
 
 ## License
 

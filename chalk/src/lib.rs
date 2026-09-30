@@ -3,6 +3,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 pub mod build;
+pub mod changes;
 pub mod check;
 pub mod dev;
 pub mod function_tests;

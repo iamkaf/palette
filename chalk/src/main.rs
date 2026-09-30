@@ -1,7 +1,7 @@
 use chalk::dev::DevOptions;
 use chalk::pair::TestOptions;
 use chalk::publish::{self, PublishMode};
-use chalk::{PackRoot, TOOL_NAME, build, check, dev, game, init, pair, teakit};
+use chalk::{PackRoot, TOOL_NAME, build, changes, check, dev, game, init, pair, teakit};
 use std::env;
 use std::process::ExitCode;
 
@@ -24,6 +24,17 @@ fn run(mut args: Vec<String>) -> chalk::Result<bool> {
     let command = args.remove(0);
     if matches!(command.as_str(), "-V" | "--version") {
         println!("{TOOL_NAME} {}", env!("CARGO_PKG_VERSION"));
+        return Ok(true);
+    }
+    if command == "vanilla-table" {
+        if args.is_empty() {
+            return Err("vanilla-table needs server jars, one per data format".into());
+        }
+        let jars: Vec<std::path::PathBuf> = args.iter().map(Into::into).collect();
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&changes::generate(&jars)?)?
+        );
         return Ok(true);
     }
     if command == "init" {
@@ -65,6 +76,25 @@ fn run(mut args: Vec<String>) -> chalk::Result<bool> {
             let options = parse_test_args(&args)?;
             let support = check::support(&root)?;
             pair::test(&root, &support, &options)
+        }
+        "changes" => {
+            no_arguments("changes", &args)?;
+            let support = check::support(&root)?;
+            let table = changes::table()?;
+            let found = changes::find(&support, &table)?;
+            if found.is_empty() {
+                println!(
+                    "Nothing in the pack's JSON files changes across Minecraft {} in vanilla data",
+                    support.pack.minecraft
+                );
+            } else {
+                println!(
+                    "To look into, from vanilla data across Minecraft {}",
+                    support.pack.minecraft
+                );
+                changes::print(&root, &found);
+            }
+            Ok(true)
         }
         "build" => {
             no_arguments("build", &args)?;
@@ -202,12 +232,16 @@ Develop and test Minecraft datapacks across Minecraft versions
   chalk test                     Run the tests on every Minecraft version the pack supports
   chalk test --minecraft <ver>   Run them on one version; repeat for more
   chalk test --visible           Show the Minecraft window instead of using Xvfb (Linux)
+  chalk changes                  List what the pack's JSON files use that vanilla data only
+                                 uses in some of the versions reading them
   chalk build                    Build the pack into build/chalk/<slug>.zip
   chalk prepare                  Build the release files into build/chalk/dist/
   chalk verify                   Check the prepared files still match the sources
   chalk publish                  Upload the prepared files to chalk.toml's [publish] targets
   chalk publish --dry-run        Show what publishing would upload, without uploading
   chalk --version                Print the Chalk version
+  chalk vanilla-table <jar>...   For Chalk maintainers: print the table `chalk changes`
+                                 reads, from server jars, one per data format
 
 Run Chalk inside a pack repository: chalk.toml, the pack's files in datapack/, and
 TeaKit tests in tests/. A file named frame@-26.2.json replaces frame.json on Minecraft

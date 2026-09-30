@@ -10,11 +10,28 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 
+/// `chalk.toml`.
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-struct Manifest {
-    description: String,
-    minecraft: String,
+pub struct Manifest {
+    pub description: String,
+    pub minecraft: String,
+    /// The pack's display name, needed to publish it.
+    pub name: Option<String>,
+    /// The version being released, needed to publish it.
+    pub version: Option<String>,
+    /// The Maven group, needed to publish to Maven.
+    pub group: Option<String>,
+    /// Release targets, which the publisher reads.
+    #[serde(rename = "publish")]
+    _publish: Option<serde::de::IgnoredAny>,
+}
+
+/// Reads `chalk.toml`.
+pub fn manifest(root: &PackRoot) -> Result<Manifest> {
+    let path = root.manifest();
+    let text = fs::read_to_string(&path).map_err(|error| format!("{}: {error}", path.display()))?;
+    Ok(toml::from_str(&text).map_err(|error| format!("{}: {error}", path.display()))?)
 }
 
 /// A pack as Chalk builds it: files for every version plus generated overlays.
@@ -83,10 +100,7 @@ impl Pack {
 
 pub fn load(root: &PackRoot, versions: &Versions) -> Result<Pack> {
     let manifest_path = root.manifest();
-    let text = fs::read_to_string(&manifest_path)
-        .map_err(|error| format!("{}: {error}", manifest_path.display()))?;
-    let manifest: Manifest =
-        toml::from_str(&text).map_err(|error| format!("{}: {error}", manifest_path.display()))?;
+    let manifest = manifest(root)?;
     let minecraft = VersionRange::parse(&manifest.minecraft)?;
     let formats = versions
         .resolve(&minecraft, None)

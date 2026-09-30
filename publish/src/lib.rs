@@ -527,6 +527,13 @@ fn prepare(
     let project = pack.project()?;
     let mut config = load_config(workspace)?;
     resolve_publish_targets(&mut config, mode, ci.repository)?;
+    if config.maven.is_some() && project.group.is_empty() {
+        return Err(format!(
+            "{} needs a group to publish to Maven",
+            manifest_name(workspace)
+        )
+        .into());
+    }
     if mode == ReleasePreparation::Strict {
         require_clean_repository(workspace)?;
         require_matching_github_revision(workspace, ci.revision)?;

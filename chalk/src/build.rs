@@ -11,7 +11,13 @@ use zip::{CompressionMethod, ZipWriter};
 pub fn build(root: &PackRoot, pack: &Pack) -> Result<PathBuf> {
     let out = root.build_dir().join(format!("{}.zip", root.slug()));
     fs::create_dir_all(root.build_dir())?;
-    let mut zip = ZipWriter::new(File::create(&out)?);
+    build_to(pack, &out)?;
+    Ok(out)
+}
+
+/// Builds the zip at `out`.
+pub fn build_to(pack: &Pack, out: &Path) -> Result<()> {
+    let mut zip = ZipWriter::new(File::create(out)?);
     // Fixed timestamps keep the archive identical for identical sources.
     let options = SimpleFileOptions::default().compression_method(CompressionMethod::Deflated);
     for (path, contents) in contents(pack)? {
@@ -19,7 +25,7 @@ pub fn build(root: &PackRoot, pack: &Pack) -> Result<PathBuf> {
         zip.write_all(&contents)?;
     }
     zip.finish()?;
-    Ok(out)
+    Ok(())
 }
 
 /// Writes the same files as [`build`] into `dir` as a folder, replacing what was there.

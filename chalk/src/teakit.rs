@@ -32,8 +32,9 @@ fn wrapper(root: &PackRoot) -> Result<PathBuf> {
     Ok(path)
 }
 
-/// Installs the `@teakit/test` types and typechecks every test file.
-pub fn typecheck(root: &PackRoot) -> Result<()> {
+/// Installs the `@teakit/test` types and writes `build/chalk/tsconfig.json`, which the
+/// typecheck and editors (through `tests/tsconfig.json`) read. Returns its path.
+pub fn install_types(root: &PackRoot) -> Result<PathBuf> {
     let sdk = root.build_dir().join("sdk");
     run(
         command(root)?
@@ -60,14 +61,20 @@ pub fn typecheck(root: &PackRoot) -> Result<()> {
         },
         "include": [root.tests_dir().join("*.test.ts")]
     });
-    let tsconfig_path = root.build_dir().join("tsconfig.json");
-    fs::write(&tsconfig_path, serde_json::to_string_pretty(&tsconfig)?)?;
+    let path = root.build_dir().join("tsconfig.json");
+    fs::write(&path, serde_json::to_string_pretty(&tsconfig)?)?;
+    Ok(path)
+}
+
+/// Installs the types and typechecks every test file.
+pub fn typecheck(root: &PackRoot) -> Result<()> {
+    let tsconfig = install_types(root)?;
     run(
         command(root)?
             .arg("typecheck")
             .arg("--no-sync-sdk")
             .arg("--tsconfig")
-            .arg(&tsconfig_path)
+            .arg(&tsconfig)
             .arg("--timeout")
             .arg("120"),
         "typechecking the tests",

@@ -18,6 +18,17 @@ cargo build --release --locked -p chalk
 ./target/release/chalk --help
 ```
 
+## Start a pack
+
+```bash
+chalk init my-pack
+cd my-pack
+chalk dev
+```
+
+`chalk init` creates a pack that supports every version Chalk tests, with one function and
+a test for it, and installs the test types so your editor can check `tests/` right away.
+
 ## A pack
 
 ```text
@@ -27,7 +38,8 @@ my-pack/
 │   ├── pack.png
 │   └── data/
 └── tests/
-    └── portals.test.ts
+    ├── portals.test.ts
+    └── tsconfig.json
 ```
 
 `chalk.toml` names the pack's Minecraft versions and its description:
@@ -59,6 +71,7 @@ error.
 ## Commands
 
 ```bash
+chalk init my-pack             # create a pack in a new directory
 chalk check                    # validate the pack, typecheck its tests, and load it in
                                # every supported version
 chalk check --no-game          # skip loading it in Minecraft
@@ -109,8 +122,10 @@ Reloaded
 Players who join become operators, so you can run your functions right away. The server
 only accepts connections from your own computer, and the world stays between runs.
 
+## Tests
 
-Tests are TeaKit TypeScript files in `tests/`. `chalk test` runs each one in a Fabric
+Tests are TeaKit TypeScript files in `tests/`. `tests/tsconfig.json` extends the config
+`chalk check` writes to `build/chalk/`, which is how editors find the `@teakit/test` types. `chalk test` runs each one in a Fabric
 client connected to a Fabric dedicated server that loads your built zip, with Fabric API,
 Sodium, Iris, and C2ME installed on both, so the pack is proven in the game players
 actually run. A run also fails when the server logs a warning or error about one of the

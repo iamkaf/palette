@@ -1,6 +1,6 @@
 use chalk::dev::DevOptions;
 use chalk::pair::TestOptions;
-use chalk::{PackRoot, TOOL_NAME, build, check, dev, game, pair, problems, teakit};
+use chalk::{PackRoot, TOOL_NAME, build, check, dev, game, init, pair, problems, teakit};
 use std::env;
 use std::process::ExitCode;
 
@@ -23,6 +23,18 @@ fn run(mut args: Vec<String>) -> chalk::Result<bool> {
     let command = args.remove(0);
     if matches!(command.as_str(), "-V" | "--version") {
         println!("{TOOL_NAME} {}", env!("CARGO_PKG_VERSION"));
+        return Ok(true);
+    }
+    if command == "init" {
+        let dir = match args.as_slice() {
+            [] => env::current_dir()?,
+            [dir] => env::current_dir()?.join(dir),
+            _ => return Err("init takes at most one directory".into()),
+        };
+        init::init(&dir)?;
+        teakit::install_types(&PackRoot::at(&dir)?)?;
+        println!("Created a pack in {}", dir.display());
+        println!("Run `{TOOL_NAME} dev` there to play it, or `{TOOL_NAME} test` to run its test.");
         return Ok(true);
     }
     let root = PackRoot::discover(&env::current_dir()?)?;
@@ -159,6 +171,7 @@ fn print_help() {
         "Chalk
 Develop and test Minecraft datapacks across Minecraft versions
 
+  chalk init [<dir>]             Create a pack in a new or empty directory
   chalk check                    Validate the pack, typecheck its tests, and load it in
                                  every supported Minecraft version
   chalk check --minecraft <ver>  Load it in one version; repeat for more

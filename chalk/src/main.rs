@@ -1,5 +1,6 @@
+use chalk::dev::DevOptions;
 use chalk::pair::TestOptions;
-use chalk::{PackRoot, TOOL_NAME, build, check, game, pair, problems, teakit};
+use chalk::{PackRoot, TOOL_NAME, build, check, dev, game, pair, problems, teakit};
 use std::env;
 use std::process::ExitCode;
 
@@ -49,6 +50,10 @@ fn run(mut args: Vec<String>) -> chalk::Result<bool> {
                 clean &= loaded.problems.is_empty();
             }
             Ok(clean)
+        }
+        "dev" => {
+            let options = parse_dev_args(&args)?;
+            dev::dev(&root, &options)
         }
         "test" => {
             let options = parse_test_args(&args)?;
@@ -107,6 +112,21 @@ fn parse_check_args(args: &[String]) -> chalk::Result<CheckOptions> {
     Ok(options)
 }
 
+fn parse_dev_args(args: &[String]) -> chalk::Result<DevOptions> {
+    let mut options = DevOptions { minecraft: None };
+    let mut args = args.iter();
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--minecraft" => {
+                let version = args.next().ok_or("--minecraft needs a version")?;
+                options.minecraft = Some(version.clone());
+            }
+            other => return Err(format!("unknown dev option {other}").into()),
+        }
+    }
+    Ok(options)
+}
+
 fn parse_test_args(args: &[String]) -> chalk::Result<TestOptions> {
     let mut options = TestOptions {
         minecraft: Vec::new(),
@@ -143,6 +163,9 @@ Develop and test Minecraft datapacks across Minecraft versions
                                  every supported Minecraft version
   chalk check --minecraft <ver>  Load it in one version; repeat for more
   chalk check --no-game          Skip loading it in Minecraft
+  chalk dev                      Run a server with the pack on the newest Minecraft version
+                                 and reload the pack whenever you save
+  chalk dev --minecraft <ver>    Run it on another version
   chalk test                     Run the tests on every Minecraft version the pack supports
   chalk test --minecraft <ver>   Run them on one version; repeat for more
   chalk test --visible           Show the Minecraft window instead of using Xvfb (Linux)

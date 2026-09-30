@@ -11,18 +11,44 @@ use std::path::PathBuf;
 pub struct Problem {
     /// The source file the game read, when the message names one of the pack's resources.
     pub source: Option<PathBuf>,
+    /// Where in the source, for commands a function couldn't parse.
+    pub at: Option<Position>,
     pub message: String,
+}
+
+/// A 1-based line and a 0-based column in that line with its indentation removed, as
+/// Minecraft counts them for functions.
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub struct Position {
+    pub line: usize,
+    pub column: Option<usize>,
 }
 
 /// Prints problems under a version heading, with sources relative to the repository.
 pub fn print(root: &PackRoot, problems: &[Problem]) {
     for problem in problems {
-        match &problem.source {
-            Some(source) => {
-                let source = source.strip_prefix(root.dir()).unwrap_or(source);
-                println!("  PACK    {}: {}", source.display(), problem.message);
+        let Some(source) = &problem.source else {
+            println!("  PACK    {}", problem.message);
+            continue;
+        };
+        let relative = source.strip_prefix(root.dir()).unwrap_or(source).display();
+        let Some(at) = problem.at else {
+            println!("  PACK    {relative}: {}", problem.message);
+            continue;
+        };
+        println!("  PACK    {relative}:{}: {}", at.line, problem.message);
+        let line = std::fs::read_to_string(source).ok().and_then(|text| {
+            let line = text.lines().nth(at.line.checked_sub(1)?)?;
+            Some(line.trim().to_owned())
+        });
+        if let Some(line) = line {
+            println!("          {line}");
+            if let Some(column) = at.column {
+                println!(
+                    "          {}^",
+                    " ".repeat(column.min(line.chars().count()))
+                );
             }
-            None => println!("  PACK    {}", problem.message),
         }
     }
 }
@@ -76,6 +102,7 @@ pub fn find(log: &str, pack: &Pack, format: PackFormat) -> Vec<Problem> {
         if message.starts_with("Failed to load datapacks, can't proceed with server load") {
             problems.push(Problem {
                 source: None,
+                at: None,
                 message: "Minecraft refused to start with the pack loaded".into(),
             });
         } else if let Some(rest) = message.strip_prefix("Couldn't load tag ") {
@@ -147,6 +174,10 @@ fn mentioned_id(message: &str, ours: &impl Fn(&str) -> bool) -> Option<String> {
 
 fn problem(files: &[&PackFile], subject: Subject, message: String) -> Problem {
     let source = source(files, &subject).map(|file| file.source.clone());
+    let (at, message) = match subject {
+        Subject::Function(_) => command_error(&message),
+        _ => (None, message),
+    };
     let message = match (&subject, &source) {
         (_, Some(_)) => message,
         (
@@ -158,7 +189,38 @@ fn problem(files: &[&PackFile], subject: Subject, message: String) -> Problem {
         )
         | (Subject::Element { id, .. }, None) => format!("{id}: {message}"),
     };
-    Problem { source, message }
+    Problem {
+        source,
+        at,
+        message,
+    }
+}
+
+/// Splits `Whilst parsing command on line 6: Unknown block type 'x' at position 20: ...`
+/// into where it happened and what went wrong.
+fn command_error(message: &str) -> (Option<Position>, String) {
+    let Some((line, reason)) = message
+        .strip_prefix("Whilst parsing command on line ")
+        .and_then(|rest| rest.split_once(": "))
+    else {
+        return (None, message.to_owned());
+    };
+    let Ok(line) = line.parse::<usize>() else {
+        return (None, message.to_owned());
+    };
+    let (reason, column) = match reason.rsplit_once(" at position ") {
+        Some((reason, rest)) => (
+            reason,
+            rest.split_once(':')
+                .and_then(|(column, _)| column.parse().ok()),
+        ),
+        None => (reason, None),
+    };
+    // Unknown commands point below, which Chalk does by printing the line itself.
+    let reason = reason
+        .trim_end_matches(", see below for error")
+        .trim_end_matches(". See below for error");
+    (Some(Position { line, column }), reason.to_owned())
 }
 
 fn source<'a>(files: &[&'a PackFile], subject: &Subject) -> Option<&'a PackFile> {
@@ -274,13 +336,15 @@ Caused by: java.lang.IllegalArgumentException: Whilst parsing command on line 1:
         assert_eq!(
             problems,
             vec![
-                Problem { source: Some("space.json".into()), message: "missing following references: minecraft:not_a_block".into() },
+                Problem { source: Some("space.json".into()), at: None, message: "missing following references: minecraft:not_a_block".into() },
                 Problem {
                     source: Some("ray.mcfunction".into()),
-                    message: "Whilst parsing command on line 1: Unknown or incomplete command, see below for error at position 0: <--[HERE]".into()
+                    at: Some(Position { line: 1, column: Some(0) }),
+                    message: "Unknown or incomplete command".into()
                 },
                 Problem {
                     source: Some("light@-26.2.json".into()),
+                    at: None,
                     message: "Unknown registry key in ResourceKey[minecraft:root / minecraft:trigger_type]: minecraft:no_such_trigger".into()
                 },
             ]
@@ -312,6 +376,34 @@ Caused by: java.lang.IllegalStateException: Unknown registry key in ResourceKey[
         assert_eq!(
             problems[1].message,
             "Minecraft refused to start with the pack loaded"
+        );
+    }
+
+    #[test]
+    fn command_errors_point_at_the_line_and_column() {
+        assert_eq!(
+            command_error(
+                "Whilst parsing command on line 6: Unknown block type 'minecraft:not_a_block' at position 20: ... ~1 ~1 ~1 <--[HERE]"
+            ),
+            (
+                Some(Position {
+                    line: 6,
+                    column: Some(20)
+                }),
+                "Unknown block type 'minecraft:not_a_block'".into()
+            )
+        );
+        assert_eq!(
+            command_error(
+                "Whilst parsing command on line 6: Unknown or incomplete command. See below for error at position 0: <--[HERE]"
+            ),
+            (
+                Some(Position {
+                    line: 6,
+                    column: Some(0)
+                }),
+                "Unknown or incomplete command".into()
+            )
         );
     }
 

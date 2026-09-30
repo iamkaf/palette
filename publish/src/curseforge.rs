@@ -1,5 +1,4 @@
-use super::{ArtifactKind, PreparedRelease, Result, http_client};
-use crate::spec::Loader;
+use super::{Content, PreparedRelease, Result};
 use serde::{Deserialize, Serialize};
 
 const API_BASE: &str = "https://minecraft.curseforge.com/api/projects";
@@ -29,7 +28,7 @@ pub fn dry_run(release: &PreparedRelease) -> Result<Vec<String>> {
         .curseforge
         .as_ref()
         .ok_or_else(|| crate::Error::from("CurseForge is not configured"))?;
-    let artifact = release.artifact(ArtifactKind::CurseForge)?;
+    let artifact = release.artifact(release.project.curseforge_file())?;
     Ok(vec![format!(
         "DRY CurseForge {} <- {} ({})",
         upload_url(config.project),
@@ -46,15 +45,15 @@ pub fn publish(release: &PreparedRelease) -> Result<Vec<String>> {
         .ok_or_else(|| crate::Error::from("CurseForge is not configured"))?;
     let token = std::env::var("CURSEFORGE_TOKEN")
         .map_err(|_| crate::Error::from("set CURSEFORGE_TOKEN"))?;
-    let artifact = release.artifact(ArtifactKind::CurseForge)?;
+    let artifact = release.artifact(release.project.curseforge_file())?;
     let metadata = serde_json::to_string(&UploadMetadata {
         changelog: release.changelog()?.to_string(),
         changelog_type: "markdown".into(),
-        display_name: format!("{} {}", release.lock.pack.name, release.lock.pack.version),
-        game_version_names: vec![
-            loader_display_name(release.lock.pack.loader),
-            release.lock.pack.minecraft.clone(),
-        ],
+        display_name: format!("{} {}", release.project.name, release.project.version),
+        game_version_names: game_version_names(
+            &release.project.content,
+            &release.project.game_versions,
+        ),
         release_type: "release".into(),
     })?;
     let url = upload_url(config.project);
@@ -65,7 +64,8 @@ pub fn publish(release: &PreparedRelease) -> Result<Vec<String>> {
             reqwest::blocking::multipart::Part::bytes(artifact.bytes.clone())
                 .file_name(artifact.name.clone()),
         );
-    let response = http_client()?
+    let response = release
+        .http_client()?
         .post(url)
         .header("X-Api-Token", token)
         .multipart(form)
@@ -85,17 +85,32 @@ pub fn publish(release: &PreparedRelease) -> Result<Vec<String>> {
     )])
 }
 
-fn loader_display_name(loader: Loader) -> String {
-    match loader {
-        Loader::Fabric => "Fabric".into(),
-        Loader::Forge => "Forge".into(),
-        Loader::NeoForge => "NeoForge".into(),
+/// CurseForge takes a modpack's loader alongside its Minecraft versions.
+fn game_version_names(content: &Content, game_versions: &[String]) -> Vec<String> {
+    let mut names = Vec::new();
+    if let Content::Modpack(loader) = content {
+        names.push(loader.display_name().to_string());
     }
+    names.extend(game_versions.iter().cloned());
+    names
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn packs_name_every_minecraft_version_and_modpacks_their_loader() {
+        let versions = vec!["1.21.1".to_string(), "26.3".to_string()];
+        assert_eq!(game_version_names(&Content::Datapack, &versions), versions);
+        assert_eq!(
+            game_version_names(
+                &Content::Modpack(super::super::Loader::Fabric),
+                &versions[1..]
+            ),
+            vec!["Fabric".to_string(), "26.3".to_string()]
+        );
+    }
 
     #[test]
     fn sends_game_version_names_to_curseforge() {

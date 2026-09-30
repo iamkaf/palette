@@ -1,4 +1,4 @@
-use super::{ArtifactKind, PreparedRelease, Result, http_client};
+use super::{Content, PreparedRelease, Result};
 use serde::{Deserialize, Serialize};
 
 const API_BASE: &str = "https://api.modrinth.com/v2";
@@ -46,7 +46,7 @@ pub fn dry_run(release: &PreparedRelease) -> Result<Vec<String>> {
         .modrinth
         .as_ref()
         .ok_or_else(|| crate::Error::from("Modrinth is not configured"))?;
-    let artifact = release.artifact(ArtifactKind::Client)?;
+    let artifact = release.artifact(release.project.primary())?;
     Ok(vec![format!(
         "DRY Modrinth {} for {} <- {} ({})",
         create_version_url(),
@@ -62,20 +62,28 @@ pub fn publish(release: &PreparedRelease) -> Result<Vec<String>> {
         .modrinth
         .as_ref()
         .ok_or_else(|| crate::Error::from("Modrinth is not configured"))?;
-    let artifact = release.artifact(ArtifactKind::Client)?;
+    let artifact = release.artifact(release.project.primary())?;
     let token =
         std::env::var("MODRINTH_TOKEN").map_err(|_| crate::Error::from("set MODRINTH_TOKEN"))?;
-    let client = http_client()?;
+    let client = release.http_client()?;
     if let Some(message) = already_published(&client, &token, config, release, artifact)? {
         return Ok(vec![message]);
     }
 
-    let loaders = vec![release.lock.pack.loader.as_str().to_string()];
-    let game_versions = vec![release.lock.pack.minecraft.clone()];
+    // Modrinth files datapacks and resource packs under their own loaders.
+    let loaders = vec![
+        match release.project.content {
+            Content::Modpack(loader) => loader.id(),
+            Content::Datapack => "datapack",
+            Content::ResourcePack => "minecraft",
+        }
+        .to_string(),
+    ];
+    let game_versions = release.project.game_versions.clone();
     let changelog = release.changelog()?;
     let data = serde_json::to_string(&VersionData {
-        name: &format!("{} {}", release.lock.pack.name, release.lock.pack.version),
-        version_number: &release.lock.pack.version,
+        name: &format!("{} {}", release.project.name, release.project.version),
+        version_number: &release.project.version,
         changelog,
         dependencies: Vec::new(),
         version_type: "release",
@@ -123,7 +131,7 @@ fn already_published(
         .query(&[
             (
                 "game_versions",
-                serde_json::to_string(&[release.lock.pack.minecraft.as_str()])?,
+                serde_json::to_string(&release.project.game_versions)?,
             ),
             ("include_changelog", "false".to_string()),
         ])
@@ -133,7 +141,7 @@ fn already_published(
     }
     let versions: Vec<ExistingVersion> = response.error_for_status()?.json()?;
     for version in versions {
-        if version.version_number != release.lock.pack.version {
+        if version.version_number != release.project.version {
             continue;
         }
         if version.files.iter().any(|file| {
@@ -144,7 +152,7 @@ fn already_published(
         }
         return Err(format!(
             "Modrinth already has version {} with different bytes",
-            release.lock.pack.version
+            release.project.version
         )
         .into());
     }

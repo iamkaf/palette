@@ -79,6 +79,18 @@ impl From<zip::result::ZipError> for Error {
     }
 }
 
+impl From<palette_publish::Error> for Error {
+    fn from(value: palette_publish::Error) -> Self {
+        Self(value.to_string())
+    }
+}
+
+impl From<Error> for palette_publish::Error {
+    fn from(value: Error) -> Self {
+        Self::from(value.0)
+    }
+}
+
 impl From<reqwest::Error> for Error {
     fn from(value: reqwest::Error) -> Self {
         Self(format!("http: {value}"))

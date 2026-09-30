@@ -635,6 +635,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
 
 [[package]]
+name = "palette-publish"
+version = "0.1.0"
+dependencies = [
+ "hex",
+ "quick-xml",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "toml",
+]
+
+[[package]]
 name = "percent-encoding"
 version = "2.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1029,6 +1043,7 @@ name = "swatch"
 version = "0.5.0"
 dependencies = [
  "hex",
+ "palette-publish",
  "quick-xml",
  "reqwest",
  "serde",

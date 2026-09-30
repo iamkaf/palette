@@ -144,10 +144,41 @@ Chalk tests on these versions:
 1.21.1 skips C2ME, whose 1.21.1 builds need a newer Java than that game launches with. The
 pinned versions live in [`src/environments.toml`](src/environments.toml).
 
-`chalk test` needs Java and [Modstage](https://github.com/iamkaf/modstage) on `PATH`. On
-Linux it hides the game with `xvfb-run` unless you pass `--visible`. Before and after each
+`chalk check`, `chalk dev`, and `chalk test` need [Modstage](https://github.com/iamkaf/modstage)
+0.7.1 or newer on `PATH`. Modstage installs the Java each Minecraft version needs when yours
+is too old. On Linux `chalk test` hides the game with `xvfb-run` unless you pass `--visible`. Before and after each
 run, Chalk stops any Minecraft process still running in that version's test instance, so
 a server that hangs on shutdown can't lock the next run out of its world.
+
+## Publishing
+
+Add a name, a version, and where to publish to `chalk.toml`:
+
+```toml
+name = "Nether Portals In The End"
+version = "1.0.0"
+group = "com.example.datapacks"   # only needed for Maven
+
+[publish]
+changelog = "CHANGELOG.md"
+
+[publish.modrinth]
+project = "AbCdEfGh"
+
+[publish.maven]
+repository = "https://maven.example.com/releases"
+```
+
+`chalk publish --dry-run` builds `<slug>-<version>.zip` and shows every upload without making
+one. For a real release, `chalk prepare` builds the files into `build/chalk/dist/` from a
+clean checkout, `chalk verify` checks they still match, and `chalk publish` uploads those
+exact files. The release lists every Minecraft release in the pack's range, not only the
+versions Chalk tests, because the zip loads on all of them.
+
+Chalk shares Swatch's publisher, so `[publish.github]`, `[publish.maven]`,
+`[publish.modrinth]`, and `[publish.curseforge]` work [the same way](../swatch#prepare-and-publish-a-release).
+Publishing reads `GITHUB_TOKEN`, `MAVEN_PUBLISH_USERNAME` and `MAVEN_PUBLISH_PASSWORD`,
+`MODRINTH_TOKEN`, and `CURSEFORGE_TOKEN` for the targets you configure.
 
 ## License
 

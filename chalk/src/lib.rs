@@ -12,12 +12,18 @@ pub mod modstage;
 pub mod pack;
 pub mod pair;
 pub mod problems;
+pub mod publish;
 pub mod rcon;
 pub mod source;
 pub mod teakit;
 pub mod versions;
 
 pub const TOOL_NAME: &str = "chalk";
+pub const USER_AGENT: &str = concat!(
+    "chalk/",
+    env!("CARGO_PKG_VERSION"),
+    " (https://github.com/iamkaf/palette)"
+);
 
 #[derive(Debug)]
 pub struct Error(String);
@@ -63,6 +69,18 @@ impl From<toml::ser::Error> for Error {
 impl From<zip::result::ZipError> for Error {
     fn from(value: zip::result::ZipError) -> Self {
         Self(value.to_string())
+    }
+}
+
+impl From<palette_publish::Error> for Error {
+    fn from(value: palette_publish::Error) -> Self {
+        Self(value.to_string())
+    }
+}
+
+impl From<Error> for palette_publish::Error {
+    fn from(value: Error) -> Self {
+        Self::from(value.0)
     }
 }
 

@@ -1,5 +1,6 @@
 use chalk::dev::DevOptions;
 use chalk::pair::TestOptions;
+use chalk::publish::{self, PublishMode};
 use chalk::{PackRoot, TOOL_NAME, build, check, dev, game, init, pair, problems, teakit};
 use std::env;
 use std::process::ExitCode;
@@ -76,6 +77,32 @@ fn run(mut args: Vec<String>) -> chalk::Result<bool> {
             no_arguments("build", &args)?;
             let support = check::support(&root)?;
             println!("{}", build::build(&root, &support.pack)?.display());
+            Ok(true)
+        }
+        "prepare" => {
+            no_arguments("prepare", &args)?;
+            println!("{}", publish::prepare_release(&root)?.display());
+            Ok(true)
+        }
+        "verify" => {
+            no_arguments("verify", &args)?;
+            let release = publish::verify_release(&root)?;
+            println!(
+                "verified {} prepared files for version {}",
+                release.artifacts.len(),
+                release.pack_version
+            );
+            Ok(true)
+        }
+        "publish" => {
+            let mode = match args.as_slice() {
+                [] => PublishMode::Publish,
+                [flag] if flag == "--dry-run" => PublishMode::DryRun,
+                _ => return Err("publish takes only --dry-run".into()),
+            };
+            for line in publish::publish(&root, mode)? {
+                println!("{line}");
+            }
             Ok(true)
         }
         other => Err(format!("unknown command {other}; run `{TOOL_NAME} --help`").into()),
@@ -183,6 +210,10 @@ Develop and test Minecraft datapacks across Minecraft versions
   chalk test --minecraft <ver>   Run them on one version; repeat for more
   chalk test --visible           Show the Minecraft window instead of using Xvfb (Linux)
   chalk build                    Build the pack into build/chalk/<slug>.zip
+  chalk prepare                  Build the release files into build/chalk/dist/
+  chalk verify                   Check the prepared files still match the sources
+  chalk publish                  Upload the prepared files to chalk.toml's [publish] targets
+  chalk publish --dry-run        Show what publishing would upload, without uploading
   chalk --version                Print the Chalk version
 
 Run Chalk inside a pack repository: chalk.toml, the pack's files in datapack/, and

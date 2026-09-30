@@ -6,12 +6,12 @@ The manifest, lockfile, and `release.json` formats are experimental. They may ch
 
 ## Build and install
 
-Download the archive for your platform from [GitHub Releases](https://github.com/iamkaf/swatch/releases). Each Swatch release includes `release-manifest.json` with SHA-256 and SHA-512 hashes and a keyless Sigstore bundle. GitHub also records an artifact attestation for every native archive.
+Download the archive for your platform from [Palette's GitHub Releases](https://github.com/iamkaf/palette/releases), where Swatch releases are tagged `swatch-v<version>`. Each Swatch release includes `release-manifest.json` with SHA-256 and SHA-512 hashes and a keyless Sigstore bundle. GitHub also records an artifact attestation for every native archive.
 
-To build from source with stable Rust:
+To build from source with stable Rust, from the root of this repository:
 
 ```bash
-cargo build --release --locked
+cargo build --release --locked -p swatch
 ./target/release/swatch --help
 ```
 
@@ -166,4 +166,4 @@ Use the repository's [security policy](./SECURITY.md) instead of a public issue 
 
 ## License
 
-Swatch is licensed under the [Apache License, Version 2.0](LICENSE).
+Swatch is licensed under the [Apache License, Version 2.0](../LICENSE).

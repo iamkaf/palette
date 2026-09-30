@@ -129,7 +129,7 @@ runs:
       run: |
         set -euo pipefail
         archive="swatch-linux-x86_64.tar.gz"
-        release="https://github.com/iamkaf/swatch/releases/download/vSWATCH_VERSION"
+        release="https://github.com/iamkaf/palette/releases/download/swatch-vSWATCH_VERSION"
         download="$RUNNER_TEMP/swatch-SWATCH_VERSION-download"
         install="$RUNNER_TEMP/swatch-SWATCH_VERSION-bin"
         mkdir -p "$download" "$install"
@@ -142,7 +142,7 @@ runs:
           "$release/release-manifest.sigstore.json"
         cosign verify-blob \
           --bundle "$download/release-manifest.sigstore.json" \
-          --certificate-identity "https://github.com/iamkaf/swatch/.github/workflows/release.yml@refs/heads/main" \
+          --certificate-identity "https://github.com/iamkaf/palette/.github/workflows/release.yml@refs/heads/main" \
           --certificate-oidc-issuer https://token.actions.githubusercontent.com \
           "$download/release-manifest.json"
         test "$(jq -er '.schemaVersion' "$download/release-manifest.json")" = "1"
@@ -155,7 +155,7 @@ runs:
           "$download/release-manifest.json")"
         printf '%s  %s\n' "$sha256" "$download/$archive" | sha256sum --check --strict
         printf '%s  %s\n' "$sha512" "$download/$archive" | sha512sum --check --strict
-        gh attestation verify "$download/$archive" --repo iamkaf/swatch
+        gh attestation verify "$download/$archive" --repo iamkaf/palette
         tar -xzf "$download/$archive" -C "$install" swatch
         chmod 0755 "$install/swatch"
         echo "$install" >> "$GITHUB_PATH"
@@ -436,19 +436,19 @@ mod tests {
             .expect("setup action");
         let readme = fs::read_to_string(path.join("README.md")).expect("readme");
 
-        assert!(setup_action.contains("releases/download/v0.4.0"));
+        assert!(setup_action.contains("releases/download/swatch-v0.5.0"));
         assert!(setup_action.contains("swatch-linux-x86_64.tar.gz"));
         assert!(setup_action.contains("release-manifest.sigstore.json"));
         assert!(setup_action.contains(".sha256"));
         assert!(setup_action.contains(".sha512"));
         assert!(setup_action.contains(
-            "https://github.com/iamkaf/swatch/.github/workflows/release.yml@refs/heads/main"
+            "https://github.com/iamkaf/palette/.github/workflows/release.yml@refs/heads/main"
         ));
         assert!(
             setup_action
-                .contains("gh attestation verify \"$download/$archive\" --repo iamkaf/swatch")
+                .contains("gh attestation verify \"$download/$archive\" --repo iamkaf/palette")
         );
-        assert!(setup_action.contains("swatch 0.4.0"));
+        assert!(setup_action.contains("swatch 0.5.0"));
         for generated_workflow in [&check_workflow, &release_workflow] {
             assert!(generated_workflow.contains("uses: ./.github/actions/setup-swatch"));
             assert!(!generated_workflow.contains("cargo install"));

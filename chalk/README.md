@@ -9,12 +9,12 @@ Chalk is new. Its file layout and commands may change while more packs use it.
 
 ## Build and install
 
-Download the archive for your platform from [GitHub Releases](https://github.com/iamkaf/chalk/releases). Each release includes `release-manifest.json` with SHA-256 and SHA-512 hashes and a keyless Sigstore bundle. GitHub also records an artifact attestation for every native archive.
+Download the archive for your platform from [Palette's GitHub Releases](https://github.com/iamkaf/palette/releases), where Chalk releases are tagged `chalk-v<version>`. Each release includes `release-manifest.json` with SHA-256 and SHA-512 hashes and a keyless Sigstore bundle. GitHub also records an artifact attestation for every native archive.
 
-To build from source with stable Rust:
+To build from source with stable Rust, from the root of this repository:
 
 ```bash
-cargo build --release --locked
+cargo build --release --locked -p chalk
 ./target/release/chalk --help
 ```
 
@@ -96,4 +96,4 @@ a server that hangs on shutdown can't lock the next run out of its world.
 
 ## License
 
-[Apache 2.0](LICENSE)
+[Apache 2.0](../LICENSE)

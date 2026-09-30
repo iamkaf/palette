@@ -23,7 +23,7 @@ pub const TOOL_DISPLAY_NAME: &str = "Swatch";
 pub const USER_AGENT: &str = concat!(
     "swatch/",
     env!("CARGO_PKG_VERSION"),
-    " (https://github.com/iamkaf/swatch)"
+    " (https://github.com/iamkaf/palette)"
 );
 
 #[derive(Debug)]

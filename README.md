@@ -51,7 +51,7 @@ It can also load the pack in a vanilla server on each supported version and poin
 errors back to the file that caused them.
 
 ```bash
-chalk check          # validate the pack and load it in supported game versions
+chalk check          # validate the pack, load it, and run its function tests on each version
 chalk dev            # play the pack and reload it every time you save
 chalk test           # run your pack's in-game tests
 chalk build          # write the zip to build/chalk/

@@ -18,10 +18,8 @@ pub struct Instance<'a> {
     pub mods: Vec<String>,
     /// Server properties on top of Chalk's defaults, such as `server-port`.
     pub properties: Vec<(&'static str, String)>,
-    /// The built pack: a zip or a folder.
-    pub pack: &'a Path,
-    /// Its name in `world/datapacks/`.
-    pub pack_name: String,
+    /// Built packs, zips or folders, with their names in `world/datapacks/`.
+    pub packs: Vec<(&'a Path, String)>,
 }
 
 pub enum Loader<'a> {
@@ -53,6 +51,8 @@ pub fn config(project: &str, instances: &[Instance<'_>]) -> String {
             ("white-list", "false"),
             ("gamemode", "creative"),
             ("spawn-protection", "0"),
+            // Newer servers stop ticking, so stop loading chunks, when nobody is online.
+            ("pause-when-empty-seconds", "0"),
         ] {
             server_properties.insert(key, property.into());
         }
@@ -60,16 +60,15 @@ pub fn config(project: &str, instances: &[Instance<'_>]) -> String {
             server_properties.insert(*key, property.as_str().into());
         }
 
-        let mut fixture = Table::new();
-        fixture.insert("from", value(instance.pack.to_string_lossy().into_owned()));
-        fixture.insert(
-            "to",
-            value(format!("world/datapacks/{}", instance.pack_name)),
-        );
-        fixture.insert("side", value("server"));
-        fixture.insert("replace", value(true));
         let mut fixtures = ArrayOfTables::new();
-        fixtures.push(fixture);
+        for (pack, name) in &instance.packs {
+            let mut fixture = Table::new();
+            fixture.insert("from", value(pack.to_string_lossy().into_owned()));
+            fixture.insert("to", value(format!("world/datapacks/{name}")));
+            fixture.insert("side", value("server"));
+            fixture.insert("replace", value(true));
+            fixtures.push(fixture);
+        }
 
         let mut table = Table::new();
         table.insert("name", value(instance.name.as_str()));
@@ -188,8 +187,7 @@ mod tests {
                 sides: &["server"],
                 mods: Vec::new(),
                 properties: vec![("server-port", "25700".into())],
-                pack: Path::new("my-pack.zip"),
-                pack_name: "my-pack.zip".into(),
+                packs: vec![(Path::new("my-pack.zip"), "my-pack.zip".into())],
             }],
         )
         .parse()

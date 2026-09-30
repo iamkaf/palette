@@ -40,28 +40,11 @@ pub fn init(dir: &Path) -> Result<()> {
             "setblock ~ ~ ~ minecraft:gold_block\n".to_owned(),
         ),
         (
-            // Lets editors find the TeaKit types `chalk check` installs.
-            "tests/tsconfig.json".to_owned(),
-            "{ \"extends\": \"../build/chalk/tsconfig.json\" }\n".to_owned(),
-        ),
-        (
-            "tests/hello.test.ts".to_owned(),
+            "tests/hello.mcfunction".to_owned(),
             format!(
-                r#"import {{ Capability, Readiness, describe, test }} from "@teakit/test";
-
-describe.configure({{
-  readiness: [Readiness.World, Readiness.Player],
-  capabilities: [Capability.ServerCommands],
-}});
-
-describe("{slug}", () => {{
-  test("hello places a gold block", async (ctx) => {{
-    // A function without `return` reports 0, so check what it did instead.
-    await ctx.server.command("execute positioned 0 90 0 run function {namespace}:hello");
-    await ctx.server.command("execute if block 0 90 0 minecraft:gold_block", {{ requireSuccess: true }});
-  }});
-}});
-"#
+                "# hello places a gold block where it runs.\n\
+                 execute positioned 0 100 0 run function {namespace}:hello\n\
+                 execute unless block 0 100 0 minecraft:gold_block run say no gold block at 0 100 0\n"
             ),
         ),
     ];

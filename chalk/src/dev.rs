@@ -2,17 +2,14 @@
 
 use crate::modstage::{self, Instance, Loader};
 use crate::rcon::Rcon;
+use crate::server::{Console, Log, Server, Started};
 use crate::versions::Minecraft;
 use crate::{PackRoot, Result, build, check, problems};
-use std::collections::hash_map::RandomState;
-use std::fs::{self, File};
-use std::hash::{BuildHasher, Hasher};
-use std::io::Read;
+use std::fs;
 use std::net::TcpListener;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
 use std::thread;
-use std::time::{Duration, Instant, SystemTime};
+use std::time::{Duration, SystemTime};
 
 /// How long the log must stay quiet after `/reload` before Chalk reports the result.
 const SETTLE: Duration = Duration::from_secs(1);
@@ -37,8 +34,7 @@ pub fn dev(root: &PackRoot, options: &DevOptions) -> Result<bool> {
     build::unpack(&support.pack, &staged)?;
 
     let port = server_port()?;
-    let rcon_port = modstage::free_port()?;
-    let password = password();
+    let console = Console::new()?;
     let config = build_dir.join("modstage-dev.toml");
     fs::write(
         &config,
@@ -50,16 +46,15 @@ pub fn dev(root: &PackRoot, options: &DevOptions) -> Result<bool> {
                 loader: Loader::Vanilla,
                 sides: &["server"],
                 mods: Vec::new(),
-                properties: vec![
+                properties: [
                     // Only this computer can join or reach the console.
                     ("server-ip", "127.0.0.1".into()),
                     ("server-port", port.to_string()),
-                    ("enable-rcon", "true".into()),
-                    ("rcon.port", rcon_port.to_string()),
-                    ("rcon.password", password.clone()),
-                ],
-                pack: &staged,
-                pack_name: root.slug().to_owned(),
+                ]
+                .into_iter()
+                .chain(console.properties())
+                .collect(),
+                packs: vec![(&staged, root.slug().to_owned())],
             }],
         ),
     )?;
@@ -74,45 +69,31 @@ pub fn dev(root: &PackRoot, options: &DevOptions) -> Result<bool> {
 
     fs::create_dir_all(build_dir.join("logs"))?;
     let log_path = build_dir.join("logs").join(format!("{name}.log"));
-    let output = File::create(&log_path)?;
     println!(
         "Starting Minecraft {} with {}",
         minecraft.version,
         root.slug()
     );
-    let mut server = Command::new("modstage")
-        .arg("--config")
-        .arg(&config)
-        .args(["run", "server", &name, "--keep-alive"])
-        .stdout(output.try_clone()?)
-        .stderr(output)
-        .stdin(Stdio::null())
-        .spawn()
-        .map_err(|error| format!("running modstage: {error}"))?;
-
-    let mut log = Log::open(&log_path)?;
-    let mut startup = String::new();
-    while !startup.contains("RCON running on") {
-        if server.try_wait()?.is_some() {
-            startup.push_str(&log.read_new()?);
+    let mut server = Server::start(&config, &name, log_path)?;
+    let startup = match server.wait_ready()? {
+        Started::Ready(text) => text,
+        Started::Stopped(text) => {
             problems::print(
                 root,
-                &problems::find(&startup, &support.pack, minecraft.data_format),
+                &problems::find(&text, &support.pack, minecraft.data_format),
             );
             println!(
                 "Minecraft stopped before it finished starting; see {}",
-                log_path.display()
+                server.log_path.display()
             );
             return Ok(false);
         }
-        thread::sleep(Duration::from_millis(250));
-        startup.push_str(&log.read_new()?);
-    }
+    };
     let found = problems::find(&startup, &support.pack, minecraft.data_format);
     problems::print(root, &found);
     let world_pack = world_pack(&config, &name, root.slug())?
         .ok_or("Modstage doesn't know where the dev server lives")?;
-    let mut rcon = Rcon::connect(rcon_port, &password)?;
+    let mut rcon = console.connect()?;
     println!(
         "Join 127.0.0.1:{port} from Minecraft {}. Chalk reloads the pack when you save, \
          and Ctrl+C stops the server.",
@@ -122,8 +103,8 @@ pub fn dev(root: &PackRoot, options: &DevOptions) -> Result<bool> {
     let mut seen = snapshot(root)?;
     loop {
         thread::sleep(Duration::from_millis(300));
-        op_joined_players(&mut rcon, &log.read_new()?)?;
-        if let Some(status) = server.try_wait()? {
+        op_joined_players(&mut rcon, &server.log.read_new()?)?;
+        if let Some(status) = server.exited()? {
             println!("Minecraft stopped");
             return Ok(status.success());
         }
@@ -134,7 +115,7 @@ pub fn dev(root: &PackRoot, options: &DevOptions) -> Result<bool> {
         // Give editors a moment to finish writing every file they save together.
         thread::sleep(Duration::from_millis(200));
         seen = snapshot(root)?;
-        reload(root, &minecraft, &world_pack, &mut rcon, &mut log)?;
+        reload(root, &minecraft, &world_pack, &mut rcon, &mut server.log)?;
     }
 }
 
@@ -162,7 +143,7 @@ fn reload(
     build::unpack(&support.pack, world_pack)?;
     log.read_new()?;
     rcon.command("reload")?;
-    let text = log.read_until_quiet()?;
+    let text = log.read_until_quiet(SETTLE)?;
     let found = problems::find(&text, &support.pack, minecraft.data_format);
     match found.len() {
         0 => println!("Reloaded"),
@@ -211,12 +192,6 @@ fn server_port() -> Result<u16> {
     }
 }
 
-/// A fresh password for the local console, so other programs can't send commands to it.
-fn password() -> String {
-    let random = || RandomState::new().build_hasher().finish();
-    format!("{:016x}{:016x}", random(), random())
-}
-
 /// Every source file with its modification time and size.
 fn snapshot(root: &PackRoot) -> Result<Vec<(PathBuf, SystemTime, u64)>> {
     let mut files = check::files(&root.pack_dir())?;
@@ -229,47 +204,6 @@ fn snapshot(root: &PackRoot) -> Result<Vec<(PathBuf, SystemTime, u64)>> {
         }
     }
     Ok(snapshot)
-}
-
-/// Follows the server's output as Modstage writes it.
-struct Log {
-    file: File,
-    partial: String,
-}
-
-impl Log {
-    fn open(path: &Path) -> Result<Self> {
-        Ok(Self {
-            file: File::open(path)?,
-            partial: String::new(),
-        })
-    }
-
-    /// The complete lines written since the last read.
-    fn read_new(&mut self) -> Result<String> {
-        let mut bytes = Vec::new();
-        self.file.read_to_end(&mut bytes)?;
-        self.partial.push_str(&String::from_utf8_lossy(&bytes));
-        let complete = self.partial.rfind('\n').map_or(0, |end| end + 1);
-        let rest = self.partial.split_off(complete);
-        Ok(std::mem::replace(&mut self.partial, rest))
-    }
-
-    /// Everything written until the log stays quiet for [`SETTLE`], up to 30 seconds.
-    fn read_until_quiet(&mut self) -> Result<String> {
-        let started = Instant::now();
-        let mut last_line = started;
-        let mut text = String::new();
-        while last_line.elapsed() < SETTLE && started.elapsed() < Duration::from_secs(30) {
-            thread::sleep(Duration::from_millis(100));
-            let new = self.read_new()?;
-            if !new.is_empty() {
-                text.push_str(&new);
-                last_line = Instant::now();
-            }
-        }
-        Ok(text)
-    }
 }
 
 #[cfg(test)]
@@ -292,16 +226,5 @@ mod tests {
             joined_player("[13:30:01] [Server thread/INFO]: Kaf joined the game"),
             None
         );
-    }
-
-    #[test]
-    fn the_log_hands_out_only_complete_lines() {
-        let dir = tempfile::tempdir().expect("temp dir");
-        let path = dir.path().join("server.log");
-        fs::write(&path, "first\nsec").expect("write");
-        let mut log = Log::open(&path).expect("open");
-        assert_eq!(log.read_new().expect("read"), "first\n");
-        fs::write(&path, "first\nsecond\n").expect("write");
-        assert_eq!(log.read_new().expect("read"), "second\n");
     }
 }

@@ -6,6 +6,7 @@ pub mod build;
 pub mod check;
 pub mod dev;
 pub mod game;
+pub mod init;
 pub mod mcmeta;
 pub mod modstage;
 pub mod pack;

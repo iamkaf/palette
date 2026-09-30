@@ -40,8 +40,8 @@ fn run(mut args: Vec<String>) -> chalk::Result<bool> {
         }
         "build" => {
             no_arguments("build", &args)?;
-            check::support(&root)?;
-            println!("{}", build::build(&root)?.display());
+            let support = check::support(&root)?;
+            println!("{}", build::build(&root, &support.pack)?.display());
             Ok(true)
         }
         other => Err(format!("unknown command {other}; run `{TOOL_NAME} --help`").into()),
@@ -49,21 +49,19 @@ fn run(mut args: Vec<String>) -> chalk::Result<bool> {
 }
 
 fn print_support(support: &check::Support) {
-    println!("pack.mcmeta covers formats {}", support.meta.formats);
+    println!("Minecraft {}", support.pack.minecraft);
     for minecraft in &support.minecraft {
-        let overlays = support.meta.overlays_for(minecraft.data_format);
-        if overlays.is_empty() {
-            println!(
-                "  {:<8} format {}",
-                minecraft.version, minecraft.data_format
-            );
-        } else {
-            println!(
-                "  {:<8} format {}  + {}",
-                minecraft.version,
-                minecraft.data_format,
-                overlays.join(", ")
-            );
+        let variants: usize = support
+            .pack
+            .overlays
+            .iter()
+            .filter(|overlay| overlay.formats.contains(minecraft.data_format))
+            .map(|overlay| overlay.files.len())
+            .sum();
+        match variants {
+            0 => println!("  {}", minecraft.version),
+            1 => println!("  {:<8} 1 variant", minecraft.version),
+            count => println!("  {:<8} {count} variants", minecraft.version),
         }
     }
 }
@@ -103,10 +101,12 @@ Develop and test Minecraft datapacks across Minecraft versions
   chalk check                    Validate the pack and typecheck its tests
   chalk test                     Run the tests on every Minecraft version the pack supports
   chalk test --minecraft <ver>   Run them on one version; repeat for more
-  chalk test --visible           Show the Minecraft window instead of using Xvfb
-  chalk build                    Zip the pack into build/chalk/<slug>.zip
+  chalk test --visible           Show the Minecraft window instead of using Xvfb (Linux)
+  chalk build                    Build the pack into build/chalk/<slug>.zip
   chalk --version                Print the Chalk version
 
-Run Chalk inside a pack repository: the pack in datapack/, TeaKit tests in tests/."
+Run Chalk inside a pack repository: chalk.toml, the pack's files in datapack/, and
+TeaKit tests in tests/. A file named frame@-26.2.json replaces frame.json on Minecraft
+26.2 and older."
     );
 }

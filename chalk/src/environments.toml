@@ -3,9 +3,29 @@
 # run, so a pack is proven in a production-shaped game.
 fabric_loader = "0.19.5"
 
+# The data pack format of every release a pack can name, from the first release with
+# the singular `function` and `advancement` folders.
+[releases]
+"1.21" = [48, 0]
+"1.21.1" = [48, 0]
+"1.21.2" = [57, 0]
+"1.21.3" = [57, 0]
+"1.21.4" = [61, 0]
+"1.21.5" = [71, 0]
+"1.21.6" = [80, 0]
+"1.21.7" = [81, 0]
+"1.21.8" = [81, 0]
+"1.21.9" = [88, 0]
+"1.21.10" = [88, 0]
+"1.21.11" = [94, 1]
+"26.1" = [101, 1]
+"26.1.1" = [101, 1]
+"26.1.2" = [101, 1]
+"26.2" = [107, 1]
+"26.3" = [121, 0]
+
 [[minecraft]]
 version = "26.3"
-data_format = [121, 0]
 teakit = "0.17.0+26.3"
 mods = [
   "fabric-api:0.161.0+26.3",
@@ -16,7 +36,6 @@ mods = [
 
 [[minecraft]]
 version = "26.2"
-data_format = [107, 1]
 teakit = "0.16.0+26.2"
 mods = [
   "fabric-api:0.161.0+26.2",
@@ -27,7 +46,6 @@ mods = [
 
 [[minecraft]]
 version = "26.1.2"
-data_format = [101, 1]
 teakit = "0.16.0+26.1.2"
 mods = [
   "fabric-api:0.155.3+26.1.2",
@@ -38,7 +56,6 @@ mods = [
 
 [[minecraft]]
 version = "1.21.11"
-data_format = [94, 1]
 teakit = "0.16.0+1.21.11"
 mods = [
   "fabric-api:0.141.6+1.21.11",
@@ -49,7 +66,6 @@ mods = [
 
 [[minecraft]]
 version = "1.21.1"
-data_format = [48, 0]
 teakit = "0.15.0+1.21.1"
 mods = [
   "fabric-api:0.116.17+1.21.1",

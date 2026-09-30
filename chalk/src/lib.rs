@@ -4,8 +4,10 @@ use std::path::{Path, PathBuf};
 
 pub mod build;
 pub mod check;
+pub mod mcmeta;
 pub mod pack;
 pub mod pair;
+pub mod source;
 pub mod teakit;
 pub mod versions;
 
@@ -60,25 +62,25 @@ impl From<zip::result::ZipError> for Error {
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-/// A datapack repository. The pack itself lives in `datapack/` and its TeaKit tests in
-/// `tests/`. Everything Chalk generates goes under `build/chalk/`.
+/// A datapack repository: `chalk.toml`, the pack's files in `datapack/`, and TeaKit tests
+/// in `tests/`. Everything Chalk generates goes under `build/chalk/`.
 pub struct PackRoot {
     dir: PathBuf,
     slug: String,
 }
 
 impl PackRoot {
-    /// Finds the repository containing `start` by looking for `datapack/pack.mcmeta`.
+    /// Finds the repository containing `start` by looking for `chalk.toml`.
     pub fn discover(start: &Path) -> Result<Self> {
         let mut current = Some(start);
         while let Some(dir) = current {
-            if dir.join("datapack").join("pack.mcmeta").is_file() {
+            if dir.join("chalk.toml").is_file() {
                 return Self::at(dir);
             }
             current = dir.parent();
         }
         Err(format!(
-            "no datapack/pack.mcmeta in {} or any parent directory",
+            "no chalk.toml in {} or any parent directory",
             start.display()
         )
         .into())
@@ -105,6 +107,10 @@ impl PackRoot {
     /// The repository directory name, used for world folders, instances, and archives.
     pub fn slug(&self) -> &str {
         &self.slug
+    }
+
+    pub fn manifest(&self) -> PathBuf {
+        self.dir.join("chalk.toml")
     }
 
     pub fn pack_dir(&self) -> PathBuf {

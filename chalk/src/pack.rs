@@ -1,11 +1,10 @@
 use crate::Result;
 use serde_json::Value;
 use std::fmt;
-use std::path::Path;
 
 /// The last data pack format before formats gained minor versions (Minecraft 1.21.8).
 /// Games up to it only read `pack_format`, `supported_formats`, and overlay `formats`.
-const LAST_PRE_MINOR: u32 = 81;
+pub(crate) const LAST_PRE_MINOR: u32 = 81;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackFormat {
@@ -59,36 +58,6 @@ pub struct Overlay {
 pub struct PackMeta {
     pub formats: FormatRange,
     pub overlays: Vec<Overlay>,
-}
-
-impl PackMeta {
-    pub fn overlays_for(&self, format: PackFormat) -> Vec<&str> {
-        self.overlays
-            .iter()
-            .filter(|overlay| overlay.formats.contains(format))
-            .map(|overlay| overlay.directory.as_str())
-            .collect()
-    }
-}
-
-pub fn read(pack_dir: &Path) -> Result<PackMeta> {
-    let path = pack_dir.join("pack.mcmeta");
-    let text =
-        std::fs::read_to_string(&path).map_err(|error| format!("{}: {error}", path.display()))?;
-    let value: Value =
-        serde_json::from_str(&text).map_err(|error| format!("{}: {error}", path.display()))?;
-    let meta = parse(&value).map_err(|error| format!("{}: {error}", path.display()))?;
-    for overlay in &meta.overlays {
-        if !pack_dir.join(&overlay.directory).is_dir() {
-            return Err(format!(
-                "{}: overlay directory {} does not exist",
-                path.display(),
-                overlay.directory
-            )
-            .into());
-        }
-    }
-    Ok(meta)
 }
 
 pub fn parse(value: &Value) -> Result<PackMeta> {
@@ -361,8 +330,8 @@ mod tests {
         assert!(meta.formats.contains(format(48, 0)));
         assert!(meta.formats.contains(format(121, 0)));
         assert!(!meta.formats.contains(format(122, 0)));
-        assert_eq!(meta.overlays_for(format(107, 1)), vec!["before-26.3"]);
-        assert!(meta.overlays_for(format(121, 0)).is_empty());
+        assert!(meta.overlays[0].formats.contains(format(107, 1)));
+        assert!(!meta.overlays[0].formats.contains(format(121, 0)));
     }
 
     #[test]

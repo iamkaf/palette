@@ -1,5 +1,5 @@
 use crate::check::Support;
-use crate::versions::{self, Minecraft};
+use crate::versions::Minecraft;
 use crate::{PackRoot, Result, build, teakit};
 use serde_json::Value;
 use std::fs::{self, File};
@@ -22,7 +22,9 @@ pub struct TestOptions {
 pub fn test(root: &PackRoot, support: &Support, options: &TestOptions) -> Result<bool> {
     let targets = select(&support.minecraft, &options.minecraft)?;
     let tests = test_files(root)?;
-    if !options.visible && !on_path("xvfb-run") {
+    // Only Linux can hide the window, through a virtual X server.
+    let headless_run = !options.visible && cfg!(target_os = "linux");
+    if headless_run && !on_path("xvfb-run") {
         return Err(
             "xvfb-run is needed to run Minecraft in the background; install it or pass --visible"
                 .into(),
@@ -30,13 +32,17 @@ pub fn test(root: &PackRoot, support: &Support, options: &TestOptions) -> Result
     }
 
     // Test the archive players install, not the source folder.
-    let archive = build::build(root)?;
+    let archive = build::build(root, &support.pack)?;
+    let namespaces = support.pack.namespaces();
     let build = root.build_dir();
     fs::create_dir_all(build.join("reports"))?;
     fs::create_dir_all(build.join("logs"))?;
     let modstage = build.join("modstage.toml");
     let teakit = build.join("teakit.toml");
-    fs::write(&modstage, modstage_config(root, &archive, &targets)?)?;
+    fs::write(
+        &modstage,
+        modstage_config(root, &archive, &support.versions.fabric_loader, &targets)?,
+    )?;
     fs::write(&teakit, teakit_config(root, &targets)?)?;
 
     let mut passed = true;
@@ -67,11 +73,9 @@ pub fn test(root: &PackRoot, support: &Support, options: &TestOptions) -> Result
                 .arg("600")
                 .arg("--report")
                 .arg(&report);
-            let mut command = if options.visible {
-                pair
-            } else {
-                headless(pair)
-            };
+            let mut command = if headless_run { headless(pair) } else { pair };
+            let server_log = server_log(root, minecraft, test);
+            let _ = fs::remove_file(&server_log);
             let output = File::create(&log)?;
             command
                 .stdout(output.try_clone()?)
@@ -82,6 +86,7 @@ pub fn test(root: &PackRoot, support: &Support, options: &TestOptions) -> Result
                 .map_err(|error| format!("starting the TeaKit pair: {error}"))?;
 
             passed &= summarize(&report, &log);
+            passed &= report_pack_errors(&server_log, &namespaces);
             stop_leftovers(&modstage, &instance_id(minecraft))?;
         }
     }
@@ -210,8 +215,12 @@ fn instance_id(minecraft: &Minecraft) -> String {
     format!("pair-{}", minecraft.version)
 }
 
-fn modstage_config(root: &PackRoot, archive: &Path, targets: &[Minecraft]) -> Result<String> {
-    let environments = versions::environments()?;
+fn modstage_config(
+    root: &PackRoot,
+    archive: &Path,
+    fabric_loader: &str,
+    targets: &[Minecraft],
+) -> Result<String> {
     let mut document = DocumentMut::new();
 
     let mut project = toml_edit::Table::new();
@@ -268,10 +277,7 @@ fn modstage_config(root: &PackRoot, archive: &Path, targets: &[Minecraft]) -> Re
         instance.insert("name", toml_edit::value(instance_id(minecraft)));
         instance.insert("minecraft", toml_edit::value(minecraft.version.as_str()));
         instance.insert("loader", toml_edit::value("fabric"));
-        instance.insert(
-            "loader_version",
-            toml_edit::value(environments.fabric_loader.as_str()),
-        );
+        instance.insert("loader_version", toml_edit::value(fabric_loader));
         instance.insert("sides", toml_edit::value(sides));
         instance.insert(
             "server_properties",
@@ -320,6 +326,53 @@ fn on_path(program: &str) -> bool {
     std::env::var_os("PATH")
         .map(|paths| std::env::split_paths(&paths).any(|dir| dir.join(program).is_file()))
         .unwrap_or(false)
+}
+
+/// Where the TeaKit runner keeps the dedicated server's log for a test run.
+fn server_log(root: &PackRoot, minecraft: &Minecraft, test: &Path) -> PathBuf {
+    let file = test
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    root.dir()
+        .join("build")
+        .join("teakit")
+        .join(node(minecraft))
+        .join(format!("{file}.pair"))
+        .join("modstage-server.log")
+}
+
+/// Prints warnings and errors the server logged about the pack's own namespaces, such as
+/// a file that failed to parse, and returns whether there were none. A test can pass
+/// without touching a broken file, so these fail the run on their own.
+fn report_pack_errors(server_log: &Path, namespaces: &[String]) -> bool {
+    let Ok(text) = fs::read_to_string(server_log) else {
+        return true;
+    };
+    let errors = pack_errors(&text, namespaces);
+    for line in errors.iter().take(10) {
+        println!("  PACK    {line}");
+    }
+    if errors.len() > 10 {
+        println!(
+            "  PACK    and {} more in {}",
+            errors.len() - 10,
+            server_log.display()
+        );
+    }
+    errors.is_empty()
+}
+
+fn pack_errors<'a>(log: &'a str, namespaces: &[String]) -> Vec<&'a str> {
+    log.lines()
+        .filter(|line| line.contains("/ERROR]") || line.contains("/WARN]"))
+        .filter(|line| {
+            namespaces
+                .iter()
+                .any(|namespace| line.contains(&format!("{namespace}:")))
+        })
+        .map(str::trim)
+        .collect()
 }
 
 /// Prints one line per test from the runner's report and returns whether all passed.
@@ -374,6 +427,23 @@ fn one_line(text: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::versions;
+
+    #[test]
+    fn pack_errors_are_warnings_and_errors_about_the_pack() {
+        let log = "\
+[10:00:00] [Server thread/INFO]: Loaded 12 advancements from demo:start
+[10:00:00] [Server thread/ERROR]: Couldn't parse element demo:light_portal: No key trigger
+[10:00:00] [Server thread/WARN]: Missing data pack file/demo
+[10:00:00] [Server thread/ERROR]: Couldn't load other:thing";
+        let errors = pack_errors(log, &["demo".to_owned()]);
+        assert_eq!(
+            errors,
+            vec![
+                "[10:00:00] [Server thread/ERROR]: Couldn't parse element demo:light_portal: No key trigger"
+            ]
+        );
+    }
 
     #[test]
     fn server_properties_are_an_inline_table_so_modstage_reads_them() {
@@ -381,12 +451,17 @@ mod tests {
         let repo = dir.path().join("my-pack");
         fs::create_dir_all(repo.join("datapack")).expect("pack dir");
         let root = PackRoot::at(&repo).expect("root");
-        let targets = versions::environments().expect("environments").minecraft;
+        let versions = versions::versions().expect("versions");
 
-        let config: DocumentMut = modstage_config(&root, Path::new("my-pack.zip"), &targets)
-            .expect("config")
-            .parse()
-            .expect("valid TOML");
+        let config: DocumentMut = modstage_config(
+            &root,
+            Path::new("my-pack.zip"),
+            &versions.fabric_loader,
+            &versions.minecraft,
+        )
+        .expect("config")
+        .parse()
+        .expect("valid TOML");
 
         let properties = config["instance"][0]["server_properties"]
             .as_inline_table()

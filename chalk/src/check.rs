@@ -1,46 +1,52 @@
-use crate::pack::{self, PackMeta};
-use crate::versions::{self, Minecraft};
+use crate::source::{self, Pack};
+use crate::versions::{Minecraft, Versions, versions};
 use crate::{PackRoot, Result};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-/// What a valid pack supports, for reporting and for choosing test targets.
+/// A valid pack and the Chalk-tested Minecraft versions it supports.
 pub struct Support {
-    pub meta: PackMeta,
+    pub versions: Versions,
+    pub pack: Pack,
     pub minecraft: Vec<Minecraft>,
 }
 
-/// Checks `pack.mcmeta` against every game version it claims, parses every JSON file,
-/// and returns the Chalk-tested Minecraft versions the pack loads on.
+/// Reads the pack's sources, parses every JSON file, and returns what it supports.
 pub fn support(root: &PackRoot) -> Result<Support> {
-    let pack_dir = root.pack_dir();
-    let meta = pack::read(&pack_dir)?;
-    check_json(&pack_dir)?;
-    let minecraft: Vec<Minecraft> = versions::environments()?
+    let versions = versions()?;
+    let pack = source::load(root, &versions)?;
+    check_json(&pack)?;
+    let minecraft: Vec<Minecraft> = versions
         .minecraft
-        .into_iter()
-        .filter(|minecraft| meta.formats.contains(minecraft.data_format))
+        .iter()
+        .filter(|minecraft| pack.formats.contains(minecraft.data_format))
+        .cloned()
         .collect();
     if minecraft.is_empty() {
         return Err(format!(
-            "pack.mcmeta covers formats {}, which matches no version Chalk tests",
-            meta.formats
+            "Minecraft {} includes no version Chalk tests",
+            pack.minecraft
         )
         .into());
     }
-    Ok(Support { meta, minecraft })
+    Ok(Support {
+        versions,
+        pack,
+        minecraft,
+    })
 }
 
-fn check_json(pack_dir: &Path) -> Result<()> {
+fn check_json(pack: &Pack) -> Result<()> {
     let mut errors = Vec::new();
-    for path in files(pack_dir)? {
-        if path
-            .extension()
-            .is_some_and(|extension| extension == "json")
-        {
-            let text = fs::read_to_string(&path)?;
+    let all = pack
+        .files
+        .iter()
+        .chain(pack.overlays.iter().flat_map(|overlay| &overlay.files));
+    for file in all {
+        if file.path.ends_with(".json") {
+            let text = fs::read_to_string(&file.source)?;
             if let Err(error) = serde_json::from_str::<serde_json::Value>(&text) {
-                errors.push(format!("{}: {error}", path.display()));
+                errors.push(format!("{}: {error}", file.source.display()));
             }
         }
     }

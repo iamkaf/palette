@@ -9,18 +9,19 @@ use std::thread;
 use std::time::Duration;
 use toml_edit::{Array, ArrayOfTables, DocumentMut, InlineTable, Item, Table, value};
 
-/// One Minecraft instance with the pack zip in its world.
+/// One Minecraft instance with the pack in its world.
 pub struct Instance<'a> {
     pub name: String,
     pub minecraft: &'a str,
     pub loader: Loader<'a>,
     pub sides: &'a [&'a str],
     pub mods: Vec<String>,
-    /// A server port other than the default 25565.
-    pub server_port: Option<u16>,
-    pub archive: &'a Path,
-    /// The zip's file name in `world/datapacks/`.
-    pub archive_name: String,
+    /// Server properties on top of Chalk's defaults, such as `server-port`.
+    pub properties: Vec<(&'static str, String)>,
+    /// The built pack: a zip or a folder.
+    pub pack: &'a Path,
+    /// Its name in `world/datapacks/`.
+    pub pack_name: String,
 }
 
 pub enum Loader<'a> {
@@ -55,18 +56,15 @@ pub fn config(project: &str, instances: &[Instance<'_>]) -> String {
         ] {
             server_properties.insert(key, property.into());
         }
-        if let Some(port) = instance.server_port {
-            server_properties.insert("server-port", port.to_string().into());
+        for (key, property) in &instance.properties {
+            server_properties.insert(*key, property.as_str().into());
         }
 
         let mut fixture = Table::new();
-        fixture.insert(
-            "from",
-            value(instance.archive.to_string_lossy().into_owned()),
-        );
+        fixture.insert("from", value(instance.pack.to_string_lossy().into_owned()));
         fixture.insert(
             "to",
-            value(format!("world/datapacks/{}", instance.archive_name)),
+            value(format!("world/datapacks/{}", instance.pack_name)),
         );
         fixture.insert("side", value("server"));
         fixture.insert("replace", value(true));
@@ -181,7 +179,6 @@ mod tests {
 
     #[test]
     fn server_properties_are_an_inline_table_so_modstage_reads_them() {
-        let archive = Path::new("my-pack.zip");
         let config: DocumentMut = config(
             "my-pack",
             &[Instance {
@@ -190,9 +187,9 @@ mod tests {
                 loader: Loader::Vanilla,
                 sides: &["server"],
                 mods: Vec::new(),
-                server_port: Some(25700),
-                archive,
-                archive_name: "my-pack.zip".into(),
+                properties: vec![("server-port", "25700".into())],
+                pack: Path::new("my-pack.zip"),
+                pack_name: "my-pack.zip".into(),
             }],
         )
         .parse()

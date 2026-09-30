@@ -35,9 +35,9 @@ pub fn load(root: &PackRoot, support: &Support, targets: &[Minecraft]) -> Result
             sides: &["server"],
             mods: Vec::new(),
             // Several servers run at once, so each needs its own port.
-            server_port: Some(modstage::free_port()?),
-            archive: &archive,
-            archive_name: format!("{}.zip", root.slug()),
+            properties: vec![("server-port", modstage::free_port()?.to_string())],
+            pack: &archive,
+            pack_name: format!("{}.zip", root.slug()),
         });
     }
     fs::write(&config, modstage::config(root.slug(), &instances))?;
@@ -108,6 +108,7 @@ fn load_one(
     if found.is_empty() && !text.contains("Done (") {
         found.push(Problem {
             source: None,
+            at: None,
             message: format!(
                 "Minecraft stopped before it finished starting; see {}",
                 log.display()

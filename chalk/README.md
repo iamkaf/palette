@@ -62,6 +62,8 @@ error.
 chalk check                    # validate the pack, typecheck its tests, and load it in
                                # every supported version
 chalk check --no-game          # skip loading it in Minecraft
+chalk dev                      # play the pack on the newest version and reload it on save
+chalk dev --minecraft 1.21.1   # play it on another version
 chalk test                     # run the tests on every supported version
 chalk test --minecraft 26.2    # run them on one version; repeat for more
 chalk test --visible           # show the Minecraft window instead of using Xvfb
@@ -74,7 +76,8 @@ Chalk writes everything it generates under `build/chalk/`.
 
 `chalk check` starts a vanilla dedicated server for each supported version with the built
 zip in its world, waits until the server is up, and stops it. Whatever the game logged
-about the pack becomes a problem, pointed at the file that version actually read:
+about the pack becomes a problem, pointed at the file that version actually read, and at
+the line for commands that don't parse:
 
 ```text
 Loading the pack in Minecraft
@@ -87,7 +90,25 @@ This catches anything the game rejects on a version, like a command that doesn't
 an ID that doesn't exist there, without writing a test. Servers start a few at a time;
 five versions take about a minute once their files are downloaded.
 
-## Tests
+## Playing while you work
+
+`chalk dev` starts a vanilla server with the pack in its world and prints the address to
+join from your own Minecraft. Every time you save a file in `datapack/` or `chalk.toml`,
+Chalk rebuilds the pack, reloads it in the running game, and reports what Minecraft said
+about it:
+
+```text
+Join 127.0.0.1:25565 from Minecraft 26.3. Chalk reloads the pack when you save, and Ctrl+C stops the server.
+Reloaded with 1 problem
+  PACK    datapack/data/my_pack/function/row.mcfunction:6: Unknown block type 'minecraft:not_a_block'
+          fill ~ ~ ~ ~1 ~1 ~1 minecraft:not_a_block
+                              ^
+Reloaded
+```
+
+Players who join become operators, so you can run your functions right away. The server
+only accepts connections from your own computer, and the world stays between runs.
+
 
 Tests are TeaKit TypeScript files in `tests/`. `chalk test` runs each one in a Fabric
 client connected to a Fabric dedicated server that loads your built zip, with Fabric API,

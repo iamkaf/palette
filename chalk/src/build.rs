@@ -2,7 +2,7 @@ use crate::source::Pack;
 use crate::{PackRoot, Result, mcmeta};
 use std::fs::{self, File};
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use zip::write::SimpleFileOptions;
 use zip::{CompressionMethod, ZipWriter};
 
@@ -14,21 +14,47 @@ pub fn build(root: &PackRoot, pack: &Pack) -> Result<PathBuf> {
     let mut zip = ZipWriter::new(File::create(&out)?);
     // Fixed timestamps keep the archive identical for identical sources.
     let options = SimpleFileOptions::default().compression_method(CompressionMethod::Deflated);
-
-    zip.start_file("pack.mcmeta", options)?;
-    zip.write_all(serde_json::to_string_pretty(&mcmeta::generate(pack)?)?.as_bytes())?;
-    for file in &pack.files {
-        zip.start_file(file.path.as_str(), options)?;
-        zip.write_all(&fs::read(&file.source)?)?;
-    }
-    for overlay in &pack.overlays {
-        for file in &overlay.files {
-            zip.start_file(format!("{}/{}", overlay.directory, file.path), options)?;
-            zip.write_all(&fs::read(&file.source)?)?;
-        }
+    for (path, contents) in contents(pack)? {
+        zip.start_file(path, options)?;
+        zip.write_all(&contents)?;
     }
     zip.finish()?;
     Ok(out)
+}
+
+/// Writes the same files as [`build`] into `dir` as a folder, replacing what was there.
+pub fn unpack(pack: &Pack, dir: &Path) -> Result<()> {
+    if dir.exists() {
+        fs::remove_dir_all(dir)?;
+    }
+    for (path, contents) in contents(pack)? {
+        let path = dir.join(path);
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        fs::write(path, contents)?;
+    }
+    Ok(())
+}
+
+/// Every file in the built pack, by its path in the pack.
+fn contents(pack: &Pack) -> Result<Vec<(String, Vec<u8>)>> {
+    let mut contents = vec![(
+        "pack.mcmeta".to_owned(),
+        serde_json::to_string_pretty(&mcmeta::generate(pack)?)?.into_bytes(),
+    )];
+    for file in &pack.files {
+        contents.push((file.path.clone(), fs::read(&file.source)?));
+    }
+    for overlay in &pack.overlays {
+        for file in &overlay.files {
+            contents.push((
+                format!("{}/{}", overlay.directory, file.path),
+                fs::read(&file.source)?,
+            ));
+        }
+    }
+    Ok(contents)
 }
 
 #[cfg(test)]

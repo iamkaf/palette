@@ -57,9 +57,9 @@ pub fn test(root: &PackRoot, support: &Support, options: &TestOptions) -> Result
                     .map(|entry| format!("modrinth:{entry}")),
             )
             .collect(),
-            server_port: None,
-            archive: &archive,
-            archive_name: format!("{}.zip", root.slug()),
+            properties: Vec::new(),
+            pack: &archive,
+            pack_name: format!("{}.zip", root.slug()),
         })
         .collect();
     fs::write(&modstage, modstage::config(root.slug(), &instances))?;

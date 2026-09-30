@@ -5,6 +5,8 @@ use serde_json::Value;
 use std::fs::{self, File};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::thread;
+use std::time::Duration;
 use toml::Table;
 use toml_edit::{Array, ArrayOfTables, DocumentMut, InlineTable, Item};
 
@@ -46,6 +48,7 @@ pub fn test(root: &PackRoot, support: &Support, options: &TestOptions) -> Result
             let log = build.join("logs").join(format!("{run}.log"));
             let _ = fs::remove_file(&report);
             println!("{} {name}", minecraft.version);
+            stop_leftovers(&modstage, &instance_id(minecraft))?;
 
             let mut pair = teakit::command(root)?;
             pair.arg("pair")
@@ -79,9 +82,76 @@ pub fn test(root: &PackRoot, support: &Support, options: &TestOptions) -> Result
                 .map_err(|error| format!("starting the TeaKit pair: {error}"))?;
 
             passed &= summarize(&report, &log);
+            stop_leftovers(&modstage, &instance_id(minecraft))?;
         }
     }
     Ok(passed)
+}
+
+/// Stops Minecraft processes still running in an instance. A dedicated server can
+/// outlive its launcher when its shutdown hangs, as 1.21.1 sometimes does while saving
+/// chunks, and it keeps the world locked so the next run can't start.
+fn stop_leftovers(modstage: &Path, instance: &str) -> Result<()> {
+    let Some(dir) = instance_dir(modstage, instance)? else {
+        return Ok(());
+    };
+    for pid in processes_in(&dir) {
+        println!("  stopping Minecraft process {pid}, which outlived its test run");
+        signal(pid, "TERM");
+        for _ in 0..20 {
+            if !alive(pid) {
+                break;
+            }
+            thread::sleep(Duration::from_millis(500));
+        }
+        if alive(pid) {
+            signal(pid, "KILL");
+        }
+    }
+    Ok(())
+}
+
+/// Asks Modstage where an instance lives. `None` before its first run.
+fn instance_dir(modstage: &Path, instance: &str) -> Result<Option<PathBuf>> {
+    let output = Command::new("modstage")
+        .arg("--config")
+        .arg(modstage)
+        .args(["inspect", "instance", instance])
+        .output()
+        .map_err(|error| format!("running modstage: {error}"))?;
+    if !output.status.success() {
+        return Ok(None);
+    }
+    let text = String::from_utf8_lossy(&output.stdout);
+    Ok(text
+        .lines()
+        .find_map(|line| line.strip_prefix("instance_dir = \""))
+        .and_then(|rest| rest.strip_suffix('"'))
+        .map(PathBuf::from))
+}
+
+fn processes_in(dir: &Path) -> Vec<u32> {
+    let Ok(entries) = fs::read_dir("/proc") else {
+        return Vec::new();
+    };
+    entries
+        .filter_map(|entry| entry.ok()?.file_name().to_str()?.parse::<u32>().ok())
+        .filter(|pid| *pid != std::process::id())
+        .filter(|pid| {
+            fs::read_link(format!("/proc/{pid}/cwd")).is_ok_and(|cwd| cwd.starts_with(dir))
+        })
+        .collect()
+}
+
+fn alive(pid: u32) -> bool {
+    Path::new(&format!("/proc/{pid}")).exists()
+}
+
+fn signal(pid: u32, name: &str) {
+    let _ = Command::new("kill")
+        .arg(format!("-{name}"))
+        .arg(pid.to_string())
+        .status();
 }
 
 fn select(supported: &[Minecraft], requested: &[String]) -> Result<Vec<Minecraft>> {
@@ -267,7 +337,7 @@ fn summarize(report: &Path, log: &Path) -> bool {
             .get("error")
             .and_then(Value::as_str)
             .unwrap_or("no tests ran");
-        println!("  failed: {}", first_line(error));
+        println!("  failed: {}", one_line(error));
         println!("  log: {}", log.display());
         return false;
     };
@@ -286,7 +356,7 @@ fn summarize(report: &Path, log: &Path) -> bool {
                     .pointer("/failure/message")
                     .and_then(Value::as_str)
                     .unwrap_or(status.unwrap_or("unknown"));
-                println!("  FAILED  {name}: {}", first_line(message));
+                println!("  FAILED  {name}: {}", one_line(message));
             }
         }
     }
@@ -296,8 +366,9 @@ fn summarize(report: &Path, log: &Path) -> bool {
     passed
 }
 
-fn first_line(text: &str) -> &str {
-    text.lines().next().unwrap_or(text)
+/// Collapses a multi-line error, such as a JSON body, onto one summary line.
+fn one_line(text: &str) -> String {
+    text.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 #[cfg(test)]

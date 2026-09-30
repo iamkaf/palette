@@ -56,6 +56,11 @@ proven in the game players actually run. 1.21.1 skips C2ME, whose 1.21.1 builds 
 newer Java than that game launches with. The exact versions live in
 [`src/environments.toml`](src/environments.toml).
 
+Tests install the zip `chalk build` makes, so they prove what players download. Before and
+after each run, Chalk stops any Minecraft process still running in that version's test
+instance. A 1.21.1 server can hang while saving on shutdown and would otherwise keep its
+world locked.
+
 ## One pack for many versions
 
 Minecraft reads different `pack.mcmeta` fields on different versions. A pack that

@@ -1528,7 +1528,12 @@ author = "Example Author"
         let (_directory, workspace) = repository(GITHUB);
         let pack = modpack_pack();
         commit(&workspace);
-        prepare_release(&workspace, &pack).expect("strict preparation");
+        // Prepare outside any CI checkout; GitHub Actions sets GITHUB_SHA for this repo's run.
+        let release = prepare(&workspace, &pack, ReleasePreparation::Strict, no_ci())
+            .expect("strict preparation");
+        let manifest = manifest_from_release(&workspace, &release, ReleasePreparation::Strict)
+            .expect("release manifest");
+        write_json(&workspace.dist_dir().join("release.json"), &manifest).expect("release.json");
         load_prepared(&workspace, &pack, None).expect("clean verification");
 
         fs::write(workspace.root.join("CHANGELOG.md"), "Changed notes\n").expect("tracked change");

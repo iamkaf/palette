@@ -9,6 +9,7 @@ on:
         type: choice
         options:
           - chalk
+          - pastel
           - swatch
       version:
         description: Version already recorded in the tool's Cargo.toml, such as 0.4.0

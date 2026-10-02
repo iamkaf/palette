@@ -6,13 +6,15 @@
   <a href="https://github.com/iamkaf/palette/releases">Downloads</a> ·
   <a href="swatch#readme">Swatch guide</a> ·
   <a href="chalk#readme">Chalk guide</a> ·
+  <a href="pastel#readme">Pastel guide</a> ·
   <a href="https://github.com/iamkaf/palette/issues">Help &amp; ideas</a>
 </p>
 
-Palette is a small collection of command-line tools for making Minecraft packs. Use
-**Swatch** to put together a modpack with exact versions and separate client and server
-files. Use **Chalk** to write a datapack once, handle differences between Minecraft
-versions, and check it in the game.
+Palette is a small collection of command-line tools for making Minecraft packs and
+running them. Use **Swatch** to put together a modpack with exact versions and separate
+client and server files. Use **Chalk** to write a datapack once, handle differences between
+Minecraft versions, and check it in the game. Use **Pastel** to run a modpack as a
+dedicated server that stays on the pack version you chose.
 
 Each tool works on its own. Pick the one your pack needs.
 
@@ -62,17 +64,33 @@ See the [Chalk guide](chalk#readme) for the layout, supported versions, and test
 Game checks need Java and [Modstage](https://github.com/iamkaf/modstage); tests also
 need the setup described in the guide.
 
+## 🖌️ Pastel · modpack servers
+
+Point Pastel at a Modrinth modpack and it sets up a dedicated server in the current folder:
+the pack's server files, the loader, and a Java runtime the Minecraft version can use. It
+runs the server in the background, restarts it after a crash, and gives you a live console.
+
+```bash
+pastel install aristea   # pin a pack and download its server files
+pastel run               # start the server in the background
+pastel console           # follow the log and type server commands
+pastel stop              # save the world and shut down
+```
+
+Run these in the folder that should become the server. The [Pastel guide](pastel#readme)
+covers `server.pastel`, updates, Maven-hosted packs, and troubleshooting.
+
 ## Get the tools
 
-Download prebuilt **Swatch** and **Chalk** binaries for Linux, macOS, or Windows from
-[GitHub Releases](https://github.com/iamkaf/palette/releases). Extract the archive and
-put the executable on your `PATH`.
+Download prebuilt **Swatch**, **Chalk**, and **Pastel** binaries for Linux, macOS, or
+Windows from [GitHub Releases](https://github.com/iamkaf/palette/releases). Extract the
+archive and put the executable on your `PATH`, or next to your server for Pastel.
 
-Swatch and Chalk have separate versions. Release tags use the tool's name, such as
+Each tool has its own version. Release tags use the tool's name, such as
 `swatch-v0.5.0`. Each native release includes a hash manifest, a Sigstore bundle, and
 GitHub artifact attestations.
 
-To build either tool from source, run this from the repository's root with stable Rust
+To build a tool from source, run this from the repository's root with stable Rust
 installed:
 
 ```bash
@@ -80,9 +98,10 @@ cargo build --release --locked -p chalk
 ./target/release/chalk --help
 ```
 
-Use `-p swatch` to build Swatch instead. On Windows, the executable ends in `.exe`.
+Use `-p swatch` or `-p pastel` to build the others. On Windows, the executable ends in
+`.exe`.
 
-Both tools are young. Swatch's manifest, lockfile, and release formats are experimental;
+Swatch and Chalk are young. Swatch's manifest, lockfile, and release formats are experimental;
 Chalk's layout and commands may change as more packs use it.
 
 ## Inside Palette
@@ -91,9 +110,10 @@ Chalk's layout and commands may change as more packs use it.
 | --- | --- |
 | [`swatch/`](swatch) | Modpack authoring, locking, staging, builds, and publishing. |
 | [`chalk/`](chalk) | Datapack variants, builds, game checks, and tests. |
+| [`pastel/`](pastel) | Dedicated servers for modpacks: install, refresh, run, console, and updates. |
 | [`publish/`](publish) | The shared publishing library for GitHub Releases, Maven, Modrinth, and CurseForge. |
 
-The publishing library is currently used by Swatch.
+The publishing library is used by Swatch and Chalk.
 
 To check the Rust workspace:
 

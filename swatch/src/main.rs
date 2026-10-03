@@ -43,7 +43,7 @@ fn run(args: Vec<String>) -> swatch::Result<()> {
             let (query, version, options) = parse_add_args(&args)?;
             let project = authoring::add(&root, &query, version.as_deref(), options)?;
             let report = authoring::install(&root, authoring::InstallOptions::default())?;
-            eprintln!("added {project} and installed {} files", report.files);
+            eprintln!("added {project} and installed {}", files(report.files));
             Ok(())
         }
         "remove" => {
@@ -52,13 +52,13 @@ fn run(args: Vec<String>) -> swatch::Result<()> {
             }
             authoring::remove(&root, &args[0])?;
             let report = authoring::install(&root, authoring::InstallOptions::default())?;
-            eprintln!("removed {} and installed {} files", args[0], report.files);
+            eprintln!("removed {} and installed {}", args[0], files(report.files));
             Ok(())
         }
         "install" => {
             let options = parse_install_options(&args)?;
             let report = authoring::install(&root, options)?;
-            eprintln!("installed {} files", report.files);
+            eprintln!("installed {}", files(report.files));
             Ok(())
         }
         "publish" => {
@@ -103,6 +103,15 @@ fn run(args: Vec<String>) -> swatch::Result<()> {
             Ok(())
         }
         other => Err(format!("unknown command `{other}`").into()),
+    }
+}
+
+/// `1 file` or `3 files`.
+fn files(count: usize) -> String {
+    if count == 1 {
+        "1 file".to_owned()
+    } else {
+        format!("{count} files")
     }
 }
 

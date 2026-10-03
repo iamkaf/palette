@@ -1,0 +1,48 @@
+name: Pastel end-to-end
+
+on:
+  push:
+    paths:
+      - pastel/**
+      - Cargo.toml
+      - Cargo.lock
+      - .github/workflows/pastel-e2e.yml
+  pull_request:
+    paths:
+      - pastel/**
+      - Cargo.toml
+      - Cargo.lock
+      - .github/workflows/pastel-e2e.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    name: Run a real server on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
+
+      - name: Install, run, crash, and stop a Fabric server
+        run: cargo test -p pastel --locked --test e2e -- --ignored
+
+      - name: Upload server logs
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: pastel-e2e-${{ matrix.os }}
+          include-hidden-files: true
+          path: |
+            target/tmp/pastel-e2e/logs/
+            target/tmp/pastel-e2e/.pastel/console.log

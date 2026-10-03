@@ -163,6 +163,12 @@ cargo test -p pastel --locked
 
 `tests/supervise.rs` runs the background supervisor through the real executable with a stand-in server, covering console commands, crash restarts, and stopping during the restart delay.
 
+`tests/e2e.rs` installs a small Fabric pack, runs a real Minecraft server in the background, sends a console command, kills Java to check the crash restart, and stops it. It downloads Minecraft, Fabric, and usually Java, so it runs only on request, and CI runs it on Linux, macOS, and Windows whenever Pastel changes:
+
+```bash
+cargo test -p pastel --locked --test e2e -- --ignored
+```
+
 ## Security
 
 Use the repository's [security policy](../SECURITY.md) instead of a public issue for suspected vulnerabilities.

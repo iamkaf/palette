@@ -15,7 +15,9 @@ use std::ptr;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::thread;
 use std::time::{Duration, Instant};
-use windows_sys::Win32::Foundation::{ERROR_PIPE_CONNECTED, INVALID_HANDLE_VALUE, LocalFree};
+use windows_sys::Win32::Foundation::{
+    ERROR_NO_DATA, ERROR_PIPE_CONNECTED, INVALID_HANDLE_VALUE, LocalFree,
+};
 use windows_sys::Win32::Security::Authorization::{
     ConvertSidToStringSidW, ConvertStringSecurityDescriptorToSecurityDescriptorW, SDDL_REVISION_1,
 };
@@ -194,10 +196,15 @@ impl ConsoleListener {
             ..
         } = self;
         loop {
+            // A client may connect before this call, and may even have written
+            // its line and closed. Its data is still readable either way.
             // SAFETY: `pending` is a pipe instance this process owns.
             let connected = unsafe { ConnectNamedPipe(pending.as_raw_handle(), ptr::null_mut()) }
                 != 0
-                || io::Error::last_os_error().raw_os_error() == Some(ERROR_PIPE_CONNECTED as i32);
+                || matches!(
+                    io::Error::last_os_error().raw_os_error(),
+                    Some(code) if code == ERROR_PIPE_CONNECTED as i32 || code == ERROR_NO_DATA as i32
+                );
             let next = match create_instance(&wide_name, false) {
                 Ok(next) => next,
                 Err(_) => return,
@@ -409,12 +416,18 @@ mod tests {
             format!("pipe:{}\n", listener.name),
         )
         .unwrap();
-        {
-            let stdin = Arc::clone(&stdin);
-            thread::spawn(move || listener.serve(&stdin));
-        }
+        // The client writes and leaves before the listener waits for it.
         send_command(root.path(), "say hello").unwrap();
-        assert!(child.wait().unwrap().success());
+        thread::spawn(move || listener.serve(&stdin));
+
+        let deadline = Instant::now() + Duration::from_secs(20);
+        while child.try_wait().unwrap().is_none() {
+            if Instant::now() > deadline {
+                let _ = child.kill();
+                panic!("the server never received the console line");
+            }
+            thread::sleep(Duration::from_millis(50));
+        }
         assert_eq!(fs::read_to_string(received).unwrap(), "say hello\n");
     }
 

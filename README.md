@@ -1,5 +1,18 @@
 <p align="center">
-  <img src=".github/assets/readme-header.png" alt="Palette — tools for making Minecraft packs. A smiling chalk box, pastel color swatches, and little Minecraft blocks." width="100%">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset=".github/assets/readme-hero-dark.webp" />
+    <img src=".github/assets/readme-hero-light.webp" alt="Palette, tools for making and running Minecraft packs: Swatch for modpacks, Chalk for datapacks, and Pastel for servers. A smiling chalk box, pastel color swatches, and little Minecraft blocks." width="100%" />
+  </picture>
+</p>
+
+<p align="center">
+  <a href="https://github.com/iamkaf/palette/releases?q=swatch-v&amp;expanded=true"><picture><source media="(prefers-color-scheme: dark)" srcset="https://shieldcn.dev/badge/dynamic/json.svg?url=https%3A%2F%2Fapi.github.com%2Frepos%2Fiamkaf%2Fpalette%2Freleases%3Fper_page%3D100&amp;query=%24%5B%3F%28%40.tag_name.startsWith%28%27swatch-v%27%29%29%5D.name&amp;label=%E2%80%8B&amp;logo=twemoji:1f3a8&amp;variant=secondary&amp;mode=dark" /><img alt="Latest Swatch release" src="https://shieldcn.dev/badge/dynamic/json.svg?url=https%3A%2F%2Fapi.github.com%2Frepos%2Fiamkaf%2Fpalette%2Freleases%3Fper_page%3D100&amp;query=%24%5B%3F%28%40.tag_name.startsWith%28%27swatch-v%27%29%29%5D.name&amp;label=%E2%80%8B&amp;logo=twemoji:1f3a8&amp;variant=secondary&amp;mode=light" /></picture></a>
+  <a href="https://github.com/iamkaf/palette/releases?q=chalk-v&amp;expanded=true"><picture><source media="(prefers-color-scheme: dark)" srcset="https://shieldcn.dev/badge/dynamic/json.svg?url=https%3A%2F%2Fapi.github.com%2Frepos%2Fiamkaf%2Fpalette%2Freleases%3Fper_page%3D100&amp;query=%24%5B%3F%28%40.tag_name.startsWith%28%27chalk-v%27%29%29%5D.name&amp;label=%E2%80%8B&amp;logo=twemoji:1f58d&amp;variant=secondary&amp;mode=dark" /><img alt="Latest Chalk release" src="https://shieldcn.dev/badge/dynamic/json.svg?url=https%3A%2F%2Fapi.github.com%2Frepos%2Fiamkaf%2Fpalette%2Freleases%3Fper_page%3D100&amp;query=%24%5B%3F%28%40.tag_name.startsWith%28%27chalk-v%27%29%29%5D.name&amp;label=%E2%80%8B&amp;logo=twemoji:1f58d&amp;variant=secondary&amp;mode=light" /></picture></a>
+  <a href="https://github.com/iamkaf/palette/releases?q=pastel-v&amp;expanded=true"><picture><source media="(prefers-color-scheme: dark)" srcset="https://shieldcn.dev/badge/dynamic/json.svg?url=https%3A%2F%2Fapi.github.com%2Frepos%2Fiamkaf%2Fpalette%2Freleases%3Fper_page%3D100&amp;query=%24%5B%3F%28%40.tag_name.startsWith%28%27pastel-v%27%29%29%5D.name&amp;label=%E2%80%8B&amp;logo=twemoji:1f58c&amp;variant=secondary&amp;mode=dark" /><img alt="Latest Pastel release" src="https://shieldcn.dev/badge/dynamic/json.svg?url=https%3A%2F%2Fapi.github.com%2Frepos%2Fiamkaf%2Fpalette%2Freleases%3Fper_page%3D100&amp;query=%24%5B%3F%28%40.tag_name.startsWith%28%27pastel-v%27%29%29%5D.name&amp;label=%E2%80%8B&amp;logo=twemoji:1f58c&amp;variant=secondary&amp;mode=light" /></picture></a>
+  <br />
+  <a href="https://github.com/iamkaf/palette/actions/workflows/check.yml"><picture><source media="(prefers-color-scheme: dark)" srcset="https://shieldcn.dev/github/ci/iamkaf/palette.svg?workflow=check.yml&amp;label=check&amp;variant=secondary&amp;mode=dark" /><img alt="Check workflow" src="https://shieldcn.dev/github/ci/iamkaf/palette.svg?workflow=check.yml&amp;label=check&amp;variant=secondary&amp;mode=light" /></picture></a>
+  <a href="https://github.com/iamkaf/palette/actions/workflows/pastel-e2e.yml"><picture><source media="(prefers-color-scheme: dark)" srcset="https://shieldcn.dev/github/ci/iamkaf/palette.svg?workflow=pastel-e2e.yml&amp;label=Pastel%20server%20test&amp;variant=secondary&amp;mode=dark" /><img alt="Pastel server test on Linux, macOS, and Windows" src="https://shieldcn.dev/github/ci/iamkaf/palette.svg?workflow=pastel-e2e.yml&amp;label=Pastel%20server%20test&amp;variant=secondary&amp;mode=light" /></picture></a>
+  <a href="LICENSE"><picture><source media="(prefers-color-scheme: dark)" srcset="https://shieldcn.dev/github/license/iamkaf/palette.svg?variant=secondary&amp;mode=dark" /><img alt="Apache-2.0 license" src="https://shieldcn.dev/github/license/iamkaf/palette.svg?variant=secondary&amp;mode=light" /></picture></a>
 </p>
 
 <p align="center">
@@ -20,6 +33,8 @@ Each tool works on its own. Pick the one your pack needs.
 
 ## 🎨 Swatch · modpacks
 
+<img src=".github/assets/swatch-demo.webp" alt="A terminal runs swatch add sodium, swatch add lithium, and swatch build all. Beside it, pack.toml gains lithium under mods and sodium under client_mods, each pinned to an exact version." width="100%" />
+
 Choose your mods, resource packs, datapacks, and shaders in `pack.toml`. Swatch records
 their exact downloads and hashes in `pack.lock.toml`, along with the files you authored.
 It then builds client and server archives from those locked inputs.
@@ -39,6 +54,8 @@ Run these inside a pack repository. The [Swatch guide](swatch#readme) walks thro
 creating one with `swatch init`, adding content, and publishing a release.
 
 ## 🖍️ Chalk · datapacks
+
+<img src=".github/assets/chalk-demo.webp" alt="A datapack with frame.json for Minecraft 1.21.4 and newer and frame@-1.21.3.json for 1.21.3 and older. chalk check finds the variant, then loads the pack and passes its test on Minecraft 26.3, 26.2, 26.1.2, 1.21.11, and 1.21.1." width="100%" />
 
 Write your datapack for the newest Minecraft version you support. If an older version
 needs a different file, place it beside the original with a version range in its name:
@@ -66,15 +83,17 @@ need the setup described in the guide.
 
 ## 🖌️ Pastel · modpack servers
 
+<img src=".github/assets/pastel-demo.webp" alt="pastel install adrenaserver downloads the pack's server mods and the Fabric launcher. pastel run boots Minecraft 1.21.1 in the background and reports that the server is running." width="100%" />
+
 Point Pastel at a Modrinth modpack and it sets up a dedicated server in the current folder:
 the pack's server files, the loader, and a Java runtime the Minecraft version can use. It
 runs the server in the background, restarts it after a crash, and gives you a live console.
 
 ```bash
-pastel install aristea   # pin a pack and download its server files
-pastel run               # start the server in the background
-pastel console           # follow the log and type server commands
-pastel stop              # save the world and shut down
+pastel install adrenaserver   # pin a pack and download its server files
+pastel run                    # start the server in the background
+pastel console                # follow the log and type server commands
+pastel stop                   # save the world and shut down
 ```
 
 Run these in the folder that should become the server. The [Pastel guide](pastel#readme)

@@ -40,7 +40,7 @@ Server folders set up by Pastel 0.1 keep working as they are: the commands, `ser
 From the folder that should become the server:
 
 ```bash
-./pastel install aristea
+./pastel install adrenaserver
 ./pastel run
 ./pastel console
 ```
@@ -48,8 +48,8 @@ From the folder that should become the server:
 `install` accepts a Modrinth slug, a Modrinth modpack page, a direct HTTPS `.mrpack` URL, a local `.mrpack`, or a Maven coordinate with an explicit HTTPS repository:
 
 ```bash
-./pastel install aristea@0.1.4
-./pastel install https://modrinth.com/modpack/aristea
+./pastel install adrenaserver@1.7.0+1.21.1.fabric
+./pastel install https://modrinth.com/modpack/adrenaserver
 ./pastel install https://example.com/my-pack.mrpack
 ./pastel install ./my-pack.mrpack
 ./pastel install com.example:my-pack:1.2.0 -repo https://maven.example.com
@@ -87,7 +87,7 @@ On Windows, background console commands travel through an owner-restricted named
 The generated file is intentionally small:
 
 ```toml
-pack = "modrinth:aristea:0.1.5"
+pack = "modrinth:adrenaserver:1.7.0+1.21.1.fabric"
 memory = "4G"
 sync_on_run = true
 auto_restart = true

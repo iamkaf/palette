@@ -347,7 +347,10 @@ mod tests {
     #[test]
     fn java_args_for_an_args_file_fall_back_to_the_other_platform() {
         let root = tempfile::tempdir().unwrap();
-        let dir = root.path().join("libraries/net/neoforged/neoforge/21.0.0");
+        // Joined part by part so Windows paths use one separator, like Pastel's.
+        let dir = ["libraries", "net", "neoforged", "neoforge", "21.0.0"]
+            .iter()
+            .fold(root.path().to_path_buf(), |dir, part| dir.join(part));
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::write(dir.join("win_args.txt"), "-p libraries\n").unwrap();
         std::fs::write(root.path().join("user_jvm_args.txt"), "# jvm\n").unwrap();

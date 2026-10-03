@@ -381,8 +381,6 @@ pub fn send_command(root: &Path, line: &str) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::Read;
-    use std::process::Stdio;
 
     #[test]
     fn the_console_pipe_is_owner_restricted() {
@@ -396,15 +394,12 @@ mod tests {
     fn console_lines_reach_the_server() {
         let root = tempfile::tempdir().unwrap();
         fs::create_dir_all(state::dir(root.path())).unwrap();
-        let mut child = Command::new("powershell")
-            .args([
-                "-NoProfile",
-                "-NonInteractive",
-                "-Command",
-                "[Console]::In.ReadLine()",
-            ])
+        let received = root.path().join("received.txt");
+        let mut child = Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", "runtime::windows::tests::fake_server_process"])
+            .env("PASTEL_FAKE_SERVER_OUT", &received)
             .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
+            .stdout(Stdio::null())
             .spawn()
             .unwrap();
         let stdin = Arc::new(Mutex::new(child.stdin.take()));
@@ -419,14 +414,17 @@ mod tests {
             thread::spawn(move || listener.serve(&stdin));
         }
         send_command(root.path(), "say hello").unwrap();
-        let mut output = String::new();
-        child
-            .stdout
-            .take()
-            .unwrap()
-            .read_to_string(&mut output)
-            .unwrap();
-        child.wait().unwrap();
-        assert_eq!(output.trim(), "say hello");
+        assert!(child.wait().unwrap().success());
+        assert_eq!(fs::read_to_string(received).unwrap(), "say hello\n");
+    }
+
+    /// Stands in for Java: this test binary, copying one stdin line to a file.
+    #[test]
+    fn fake_server_process() {
+        if let Some(out) = std::env::var_os("PASTEL_FAKE_SERVER_OUT") {
+            let mut line = String::new();
+            io::stdin().read_line(&mut line).unwrap();
+            fs::write(out, line).unwrap();
+        }
     }
 }
